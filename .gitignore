@@ -39,16 +39,7 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
-# --- LaTeX (rapport et diapositives) -----------------------------------------
-*.aux
-*.log
-*.nav
-*.out
-*.snm
-*.toc
-*.synctex.gz
-*.fdb_latexmk
-*.fls
+
 
 # --- Systeme et editeurs ------------------------------------------------------
 .DS_Store
