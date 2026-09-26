@@ -1,0 +1,265 @@
+% =====================================================================
+%  ANNEXE A — Évaluation multi-LLM du mapping MITRE ATT&CK
+%             (workflow n8n sans MCP) et calcul des métriques
+% ---------------------------------------------------------------------
+%  Autonome et compilable avec pdflatex. Pour l'intégrer à un mémoire,
+%  copier le contenu entre \begin{document} et \end{document} après
+%  \appendix, et reporter les paquets « REQUIS » dans le préambule.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Paquets REQUIS ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[main=french,provide=*]{babel}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage[margin=1.9cm]{geometry}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric}
+
+% ---------- Palette ----------
+\definecolor{cIn}{HTML}{2C3E50}\definecolor{cProc}{HTML}{2980B9}
+\definecolor{cDec}{HTML}{E67E22}\definecolor{cLLM}{HTML}{8E44AD}
+\definecolor{cGT}{HTML}{27AE60}\definecolor{cErr}{HTML}{C0392B}
+\definecolor{cGy}{HTML}{7F8C8D}
+\definecolor{cBg}{HTML}{F4F6F7}\definecolor{cCode}{HTML}{ECF0F1}
+\definecolor{cComment}{HTML}{7F8C8D}\definecolor{cStr}{HTML}{C0392B}
+
+% ---------- Styles TikZ ----------
+\tikzset{
+  bul/.style={rounded corners=4pt, draw, thin, align=center, font=\tiny,
+              inner sep=2pt, minimum height=0.5cm, text width=2.0cm, fill=white},
+  bulI/.style ={bul, draw=cIn,   fill=cIn!7},
+  bulP/.style ={bul, draw=cProc, fill=cProc!8},
+  bulL/.style ={bul, draw=cLLM,  fill=cLLM!8},
+  bulG/.style ={bul, draw=cGT,   fill=cGT!9},
+  bulR/.style ={bul, draw=cErr,  fill=cErr!7},
+  bulGy/.style={bul, draw=cGy,   fill=black!4},
+  bloc/.style={draw=cGy!60, dashed, rounded corners=3pt, inner sep=6pt, fill=cBg},
+  blocT/.style={font=\scriptsize\bfseries, text=cIn},
+  FL/.style={-{Latex[length=3mm]}, line width=1pt, draw=cIn!70},
+  fl/.style={-{Latex[length=2.2mm]}, thick},
+  fld/.style={-{Latex[length=2.0mm]}, thick, dashed},
+  et/.style={font=\tiny\itshape, text=cComment, inner sep=1.5pt},
+}
+
+% ---------- Style code ----------
+\lstset{
+  basicstyle=\ttfamily\scriptsize, backgroundcolor=\color{cCode},
+  frame=single, framerule=0pt, rulecolor=\color{cCode},
+  xleftmargin=6pt, xrightmargin=3pt, framexleftmargin=5pt,
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, tabsize=2, aboveskip=3pt, belowskip=3pt,
+  commentstyle=\color{cComment}\itshape, stringstyle=\color{cStr},
+  literate=%
+    {é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {â}{{\^a}}1
+    {î}{{\^\i}}1 {ï}{{\"\i}}1 {ô}{{\^o}}1 {û}{{\^u}}1 {ù}{{\`u}}1
+    {ç}{{\c c}}1 {É}{{\'E}}1 {«}{{\guillemotleft}}1 {»}{{\guillemotright}}1
+    {’}{{'}}1 {–}{{-}}1 {…}{{...}}1,
+}
+\lstdefinestyle{bash}{language=bash}
+\lstdefinestyle{json}{language=,moredelim=[s][\color{cIn}\bfseries]{"}{":}}
+\captionsetup{font=small,labelfont=bf,skip=3pt}
+\setlength{\parskip}{2pt}
+
+\begin{document}
+\pagestyle{empty}
+
+\section*{Annexe A — Évaluation multi-LLM du mapping (workflow n8n \emph{sans} MCP) et métriques}
+
+Cette annexe décrit comment les LLM sont évalués sur la tâche de \textbf{mapping} :
+à partir d'un échantillon de télémétrie (produit selon l'annexe précédente),
+chaque modèle doit rendre le \textbf{triplet ATT\&CK} attendu — tactique,
+technique, sous-technique — dans la bonne matrice. Deux briques : un
+\textbf{workflow n8n} qui interroge les modèles et journalise leurs réponses, puis
+le script \lstinline|calculer_metriques.py| qui confronte ces réponses à la
+vérité-terrain. Le corpus compte \textbf{42 échantillons}
+(\texttt{S000.jsonl}\dots\texttt{S0041.jsonl}).
+
+% =====================================================================
+\subsection*{A.1\quad Le workflow n8n, présenté par blocs}
+% =====================================================================
+Le workflow se lit \textbf{de gauche à droite} (Figure~\ref{fig:wf}). Chaque
+\textbf{bloc} regroupe plusieurs nœuds n8n (les bulles) ; on décrit ici le rôle
+des blocs, pas de chaque bulle.
+
+\begin{figure}[ht]\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm]
+% ---- bulles (definies d'abord) ----
+\node[bulI] (n1a) at (0,0.5)  {Déclencheur};
+\node[bulI] (n1b) at (0,-0.4) {Configuration};
+\node[bulI] (n2a) at (3.0,0.5)  {Lire le corpus};
+\node[bulI] (n2b) at (3.0,-0.4) {Extraire};
+\node[bulP] (n3)  at (6.0,0.05) {Préparer les itérations};
+\node[bulGy](n4a) at (9.6,1.85) {Auth Vertex (jeton Google)};
+\node[bulL] (n4b) at (9.6,0.95) {Préparer + Appel du modèle};
+\node[bulP] (n4c) at (9.6,0.05) {Jugement (statut)};
+\node[bulR] (n4d) at (9.6,-0.85){Reprise (backoff)};
+\node[bulG] (n4e) at (9.6,-1.75){Écriture (ajout) + pause};
+\node[bulG] (n5)  at (12.9,0.05) {Synthèse de campagne};
+\node[bulG] (res) at (9.6,-3.3) {resultats\_\_<modele>.jsonl};
+% ---- conteneurs de blocs, EN ARRIERE-PLAN (pour ne pas masquer les bulles) ----
+\begin{scope}[on background layer]
+\node[bloc,fit=(n1a)(n1b),label={[blocT]above:1 · Réglages}] (B1) {};
+\node[bloc,fit=(n2a)(n2b),label={[blocT]above:2 · Corpus (42)}] (B2) {};
+\node[bloc,fit=(n3),label={[blocT]above:3 · Dépliage}] (B3) {};
+\node[bloc,fit=(n4a)(n4b)(n4c)(n4d)(n4e),
+      label={[blocT]above:4 · Boucle — un appel à la fois}] (B4) {};
+\node[bloc,fit=(n5),label={[blocT]above:5 · Fin}] (B5) {};
+\end{scope}
+% ---- fleches internes au bloc 4 ----
+\draw[fl] (n4a)--(n4b); \draw[fl] (n4b)--(n4c);
+\draw[fl] (n4c)--node[et,right]{ok} (n4e);
+\draw[fl] (n4c.west) to[out=180,in=180] node[et,left]{erreur} (n4d.west);
+\draw[fl] (n4d.east) to[out=0,in=0] node[et,right]{réessaie} (n4b.east);
+% ---- fleches entre blocs ----
+\draw[FL] (B1.east)--(B2.west);
+\draw[FL] (B2.east)--(B3.west);
+\draw[FL] (B3.east)--(B4.west);
+\draw[FL] (B4.east)--node[et,above]{fin de boucle} (B5.west);
+% ---- boucle sur les iterations ----
+\draw[fl,draw=cGy] (B4.north east) to[out=55,in=125]
+      node[et,above]{itération suivante} (B4.north west);
+% ---- sortie fichier ----
+\draw[fl,draw=cGT] (B4.south)--(res.north);
+\draw[fld] (res.east) -- ++(3.4,0)
+      node[right,font=\tiny\itshape,text=cComment,align=left]
+      {vers \lstinline|calculer_metriques.py|\\ (A.3)};
+\end{tikzpicture}}
+\caption{Workflow n8n d'évaluation, de gauche à droite. Le bloc~4 (la boucle)
+traite un appel à la fois : authentification, appel du modèle, jugement, reprise
+sur erreur, écriture puis pause, avant l'itération suivante. La vérité-terrain
+n'entre jamais dans ce workflow.}
+\label{fig:wf}
+\end{figure}
+
+\noindent\textbf{1 · Réglages} — le point d'entrée et le \emph{seul} nœud à
+configurer (clés, modèle, paramètres). \textbf{2 · Corpus} — lecture des 42
+échantillons. \textbf{3 · Dépliage} — construction de la liste des appels
+(\emph{échantillon $\times$ run $\times$ modèle}). \textbf{4 · Boucle} — le cœur :
+un appel à la fois, avec authentification (Vertex pour les modèles Google), appel
+du modèle, jugement de la réponse, reprise en cas d'erreur transitoire, puis
+écriture au fil de l'eau et pause avant l'itération suivante. \textbf{5 · Fin} —
+synthèse de campagne. Le workflow appelle les modèles \textbf{en direct par API
+HTTP, \emph{sans} MCP} : aucun outil n'est fourni, le modèle répond à partir du
+seul échantillon, ce qui mesure sa connaissance propre du référentiel.
+
+\paragraph{Paramètres choisis et justification.}
+\begin{center}\small
+\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.12}\begin{tabular}{@{}p{4.2cm}p{2.0cm}p{9.3cm}@{}}
+\toprule
+\textbf{Paramètre} & \textbf{Valeur} & \textbf{Pourquoi} \\
+\midrule
+\lstinline|runs_par_question| & 3 & chaque échantillon est rejoué plusieurs fois pour \emph{mesurer la stabilité} des réponses (un modèle peut varier même à température nulle). \\
+\lstinline|temperature| & 0 & réponses les plus déterministes et reproductibles possible. \\
+\lstinline|limite_samples| & 0 (= 42) & traite tout le corpus ; on met 4–5 uniquement pour un test de coût. \\
+\lstinline|max_tokens_sortie| & 32768 & plafond \emph{identique} pour tous, assez haut pour n'être jamais atteint (\texttt{meta.fin\_raison} prouve après coup qu'aucune réponse n'est tronquée), tout en bornant le coût d'une génération qui s'emballe. Obligatoire chez Anthropic. \\
+\lstinline|MODELE_FORCE| (1 modèle / exécution) & \texttt{""} ou un modèle & permet de lancer plusieurs campagnes \emph{en parallèle}, chacune écrivant son propre fichier — donc aucune collision. \\
+\lstinline|pause_entre_appels_s| & 8 (défaut) & espacement anti-quota entre deux appels réussis ; surchargé par modèle (p.\,ex.\ Moonshot 21\,s, limité à 3 req/min). \\
+Backoff (reprise) & $\le$ 60\,s, \lstinline|max_tentatives| & sur 429 / 5xx / réseau : on respecte d'abord le délai demandé par le serveur (\texttt{Retry-After}\dots), sinon backoff exponentiel avec \emph{jitter}. \\
+Appel en \texttt{fullResponse} + \texttt{neverError} & — & on récupère le code HTTP et le corps \emph{même en erreur} : c'est ce qui rend la reprise possible et permet de séparer erreurs du modèle et de l'infrastructure. \\
+Sortie : 1 fichier / modèle, écriture en ajout & — & robustesse (un plantage ne perd que l'appel courant) et parallélisme (pas de collision entre campagnes). \\
+\lstinline|exclure_des_metriques| & drapeau & marque les pannes d'infrastructure (quota, annulation, timeout) pour qu'elles ne comptent pas comme des erreurs du modèle. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =====================================================================
+\subsection*{A.2\quad Ce que produit le workflow}
+% =====================================================================
+Chaque appel donne \textbf{une ligne JSON} ajoutée au fichier du modèle
+(\texttt{resultats/resultats\_\_<modele>.jsonl}) : la réponse du modèle (le triplet
+ATT\&CK), son \textbf{statut} (\texttt{ok}, \texttt{format\_non\_respecte},
+\texttt{erreur\_quota\_429}\dots), et des méta-données d'exécution (latence, jetons,
+numéro de run). Ces fichiers sont l'entrée du calcul des métriques.
+
+% =====================================================================
+\subsection*{A.3\quad Calcul des métriques : \texttt{calculer\_metriques.py}}
+% =====================================================================
+Le script confronte les fichiers de résultats à la vérité-terrain et produit le
+rapport d'évaluation. Il télécharge puis met en \textbf{cache} le référentiel
+ATT\&CK (Enterprise \emph{et} ICS) pour \emph{juger} chaque identifiant prédit.
+
+\begin{figure}[ht]\centering
+\begin{tikzpicture}[x=1cm,y=1cm,node distance=3mm]
+\node[bulG,text width=3.2cm]  (r)  at (0,0.9)  {\texttt{resultats\_\_*.jsonl}\\ \scriptsize (workflow)};
+\node[bulI,text width=3.2cm]  (v)  at (0,0)    {\texttt{verite\_terrain.jsonl}\\ \scriptsize (vérité-terrain)};
+\node[bulGy,text width=3.2cm] (m)  at (0,-0.9) {Référentiel MITRE\\ \scriptsize (cache, 2 matrices)};
+\node[bulP,text width=2.9cm]  (f)  at (4.3,0)  {Filtrage + dédup\\ \scriptsize écarte erreurs d'infra};
+\node[bulP,text width=3.0cm]  (e)  at (8.2,0)  {Étiquetage 3 niveaux\\ \scriptsize VP/FP/FN/HALLU/OBSOLÈTE};
+\node[bulP,text width=3.0cm]  (met)at (8.2,-1.9){Métriques par niveau\\ \scriptsize P, R, F1 (strict \& tolérant)};
+\node[bulG,text width=3.0cm]  (rap)at (4.3,-1.9){\textbf{Rapport}\\ \scriptsize tableaux + classements};
+\draw[fl] (r.east)  to[out=0,in=180] (f.west);
+\draw[fl] (v.east)  -- (f.west);
+\draw[fl] (m.east)  to[out=0,in=180] (f.west);
+\draw[fl] (f) -- (e);
+\draw[fl] (e) -- (met);
+\draw[fl] (met) -- (rap);
+\end{tikzpicture}
+\caption{Chaîne du calcul des métriques : entrées $\to$ filtrage $\to$ étiquetage
+aux trois niveaux $\to$ métriques et classements.}
+\label{fig:metr}
+\end{figure}
+
+\textbf{Filtrage préalable.} Les itérations abandonnées pour cause
+d'infrastructure (quota, annulation, timeout, réseau — drapeau
+\lstinline|exclure_des_metriques|) sont \textbf{écartées} : les compter en faux
+négatifs attribuerait au modèle une panne de la plomberie. Comme les fichiers sont
+écrits en ajout, les doublons éventuels sont dédupliqués (on garde la dernière
+occurrence de chaque couple \emph{modèle $\times$ échantillon $\times$ exécution}).
+
+\textbf{Étiquetage}, appliqué à chaque exécution et à \textbf{chaque niveau}
+(tactique, technique, sous-technique) :
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{VP} & l'identifiant attendu est prédit \\
+\textbf{FP} & un identifiant existant dans la version figée, mais incorrect \\
+\textbf{FN} & le bon identifiant n'a pas été identifié (prédiction fausse \emph{ou} abstention) \\
+\textbf{HALLUCINATION} & identifiant absent de \emph{toute} version du référentiel (compté en FP) \\
+\textbf{OBSOLÈTE} & identifiant révoqué dont le remplaçant est l'attendu \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Une réponse rejetée (format non respecté, erreur d'API) est traitée
+comme une \textbf{abstention} aux trois niveaux. Cas de la \textbf{sous-technique}:
+si la technique attendue n'en a pas, « aucune » est un VP et affirmer une
+sous-technique est une \emph{sur-spécification} (FP) ; si elle en a une,
+l'abstention est un FN. Le F1 de sous-technique n'est calculé que sur les
+échantillons dont la technique \emph{possède} une sous-technique (22 sur 42), pour
+éviter qu'un modèle muet obtienne un F1 flatteur grâce aux échantillons terminaux.
+
+\textbf{Métriques}, calculées \textbf{séparément à chaque niveau} (jamais de F1
+global) : $\text{Précision}=\tfrac{VP}{VP+FP}$, $\text{Rappel}=\tfrac{VP}{VP+FN}$,
+$F1=\tfrac{2PR}{P+R}$. Un modèle qui s'abstient perd du rappel sans perdre de
+précision ; un modèle qui répond faux perd les deux. Le \textbf{taux d'abstention}
+complète la lecture, et les F1 sont \textbf{recalculés hors rejets} pour séparer la
+compétence de mapping de la conformité au format. Chaque F1 est calculé
+\textbf{deux fois} : \emph{strict} (les obsolètes comptent comme erreurs, métrique
+principale) et \emph{tolérant} (les obsolètes comptent comme VP) ; l'écart mesure
+la part d'erreurs due à l'obsolescence des connaissances du modèle.
+
+\textbf{Diagnostics et classements.} Le rapport ajoute des attributs de diagnostic
+(mauvaise matrice, taux d'hallucination, d'obsolescence, d'abstention,
+sur/sous-spécification) et une vue \emph{fiabilité/coût} (stabilité — part des
+échantillons dont toutes les exécutions rendent le même triplet —, latence p50/p95,
+jetons moyens, efficacité). Deux classements en découlent : \textbf{qualité du
+mapping} (mauvaise matrice, puis hallucination, puis F1 technique~$>$~tactique~$>$~sous-technique,
+puis obsolescence et abstention) et \textbf{fiabilité} (stabilité, puis latence,
+puis coût). Le script prévoit aussi une phase « avec serveur MCP » ; la présente
+campagne étant \emph{sans} MCP, ces indicateurs restent vides.
+
+\begin{lstlisting}[style=bash]
+# usage : un fichier de resultats par modele + la verite de terrain
+uv run calculer_metriques.py "resultats/resultats__*.jsonl" --verite verite_terrain.jsonl --sortie rapport
+\end{lstlisting}
+
+\end{document}

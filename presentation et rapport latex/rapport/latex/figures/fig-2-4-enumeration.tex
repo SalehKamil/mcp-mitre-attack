@@ -1,0 +1,17 @@
+% Figure 2.4 --- Énumération des outils (tools/list)
+\begin{tikzpicture}
+
+\node[fgris, minimum width=2.6cm, minimum height=1.9cm, rounded corners=1pt]
+     (cli) at (0,0) {\normalsize Client};
+\node[fbleu, minimum width=2.6cm, minimum height=1.9cm, rounded corners=1pt,
+      right=9.6cm of cli] (srv) {\normalsize Serveur};
+
+\draw[fleche] ($(cli.east)+(0,0.45cm)$) -- ($(srv.west)+(0,0.45cm)$)
+      node[midway, above, font=\scriptsize\ttfamily, text=black]
+      {\{"jsonrpc": "2.0", "id": 2, "method": "tools/list"\}};
+
+\draw[fleche] ($(srv.west)+(0,-0.45cm)$) -- ($(cli.east)+(0,-0.45cm)$)
+      node[midway, below, font=\scriptsize, text=black]
+      {les dix-huit outils, avec leurs descriptions figées dans le code du serveur};
+
+\end{tikzpicture}

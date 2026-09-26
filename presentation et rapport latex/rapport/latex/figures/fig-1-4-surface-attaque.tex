@@ -1,0 +1,57 @@
+% Figure 1.4 --- Surface d'attaque d'un serveur MCP le long de son cycle de vie
+\begin{tikzpicture}[
+    entete/.style = {fbase, draw=figbleu!60, fill=figbleu!12, minimum width=4.3cm,
+                     minimum height=0.95cm, font=\bfseries\large, text=figbleu!75!black},
+    menace/.style = {fbase, draw=figrouge, fill=figrouge!4, align=left,
+                     text width=4.1cm, anchor=north, inner sep=6pt},
+    reponse/.style= {fbase, draw=figvert,  fill=figvert!5, align=left,
+                     text width=4.1cm, anchor=south, inner sep=6pt},
+    titrem/.style = {\bfseries},
+  ]
+
+\def\dx{4.9cm}
+
+\foreach \i/\t in {0/Création, 1/Déploiement, 2/Opération, 3/{Mise à jour}}
+  \node[entete] at ({\i*\dx},0) (e\i) {\t};
+
+\foreach \i in {0,1,2} {\pgfmathtruncatemacro{\j}{\i+1}
+  \draw[fgrosse] (e\i.east) -- (e\j.west);}
+
+\node[menace] at ({0*\dx},-0.85cm)
+     {{\bfseries\color{figrouge} Menaces}\\[2pt]
+      $\bullet$ collision de noms, installateur usurpé\\
+      $\bullet$ code ou porte dérobée injectés\\
+      $\bullet$ dépendances non vérifiées};
+\node[menace] at ({1*\dx},-0.85cm)
+     {{\bfseries\color{figrouge} Menaces}\\[2pt]
+      $\bullet$ absence d'authentification (CVE-2025-49596)\\
+      $\bullet$ privilèges excessifs, évasion du bac à sable\\
+      $\bullet$ exécution distante (CVE-2025-6514)};
+\node[menace] at ({2*\dx},-0.85cm)
+     {{\bfseries\color{figrouge} Menaces}\\[2pt]
+      $\bullet$ empoisonnement d'outil (36,5 \% moy.)\\
+      $\bullet$ injection indirecte via résultats\\
+      $\bullet$ propagation de confiance, exfiltration};
+\node[menace] at ({3*\dx},-0.85cm)
+     {{\bfseries\color{figrouge} Menaces}\\[2pt]
+      $\bullet$ \emph{rug pull} (outil modifié après validation)\\
+      $\bullet$ persistance de privilèges, dérive\\
+      $\bullet$ redéploiement de version vulnérable};
+
+\def\yb{-6.2cm}
+\node[reponse] at ({0*\dx},\yb)
+     {{\bfseries\color{figvert} Réponse retenue}\\[2pt]
+      référentiel officiel (STIX) vérifié par empreinte ; dépendances épinglées};
+\node[reponse] at ({1*\dx},\yb)
+     {{\bfseries\color{figvert} Réponse retenue}\\[2pt]
+      authentification obligatoire ; moindre privilège ; aucun outil d'écriture};
+\node[reponse] at ({2*\dx},\yb)
+     {{\bfseries\color{figvert} Réponse retenue}\\[2pt]
+      descriptions d'outils gelées et hachées ; validation des entrées ;
+      sortie structurée};
+\node[reponse] at ({3*\dx},\yb)
+     {{\bfseries\color{figvert} Réponse retenue}\\[2pt]
+      bascule atomique des mises à jour ; journalisation de chaque appel ;
+      audit ATLAS};
+
+\end{tikzpicture}

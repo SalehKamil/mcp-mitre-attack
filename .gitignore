@@ -1,0 +1,58 @@
+# =============================================================================
+#  .gitignore — mcp-attack-framework
+#  NB : un commentaire doit occuper SA PROPRE ligne. Un « # » place apres un
+#  motif en fait partie et casse la regle (verifie avec `git check-ignore`).
+# =============================================================================
+
+# --- Secrets : ne JAMAIS versionner -----------------------------------------
+.env
+*.env
+*.key
+secrets.*
+# Les workflows n8n exportes contiennent les cles API dans le noeud
+# « Configuration » : les remplacer par COLLER_CLE_... avant tout commit.
+*_avec_cles.json
+
+# --- Donnees et journaux generes --------------------------------------------
+# BD MITRE ATT&CK IT/ICS telechargees au lancement du serveur MCP
+MITRE_DB/
+# Fichiers de journalisation (logs) du serveur MCP
+Logs/
+mcp_audit.jsonl
+
+# --- Journalisation du cas d'usage n8n --------------------------------------
+logs.db
+logs.db-wal
+logs.db-shm
+
+# Skills fusionnes, produits par preparer_skill.py
+skills_prets/
+
+# A VERSIONNER (ne pas ajouter ici) : dataset_eval.json et verite_terrain.json
+# — ce sont les conditions de reproductibilite de l'evaluation.
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+.uv/
+.ruff_cache/
+*.egg-info/
+
+# --- LaTeX (rapport et diapositives) -----------------------------------------
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# --- Systeme et editeurs ------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

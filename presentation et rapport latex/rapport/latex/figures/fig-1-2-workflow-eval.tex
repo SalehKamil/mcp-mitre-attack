@@ -1,0 +1,64 @@
+% Figure — Workflow d'évaluation n8n (phase 1), vue simplifiée.
+% Couleurs reprises de la figure « Génération de la télémétrie TO et TI ».
+% Aucune bibliothèque TikZ supplémentaire requise (graphicx pour \resizebox).
+\providecolor{couleurCorpus}{RGB}{241,247,244}
+\providecolor{couleurCorpusBord}{RGB}{26,122,76}
+\providecolor{couleurBleu}{RGB}{31,95,168}
+\providecolor{couleurBleuFond}{RGB}{242,245,250}
+\providecolor{couleurOrange}{RGB}{252,229,205}
+\providecolor{couleurOrangeBord}{RGB}{214,155,80}
+\providecolor{couleurN8n}{RGB}{234,75,113}
+\providecolor{couleurRelance}{RGB}{184,84,80}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  x=1cm, y=1cm, >=latex,
+  m/.style={draw=couleurBleu, fill=couleurBleuFond, thick, rounded corners=3pt,
+            align=center, text width=2.5cm, minimum height=1.9cm,
+            inner sep=3pt, font=\small},
+  f/.style={->, thick, draw=couleurBleu},
+  retour/.style={->, thick, dashed, draw=couleurRelance},
+  lab/.style={font=\footnotesize\itshape, text=couleurRelance, inner sep=2pt}
+]
+% ---------------- cadre n8n ----------------
+\draw[draw=couleurN8n, very thick, rounded corners=8pt, fill=white] (-1.75,-2.35) rectangle (13.75,2.1);
+\node[fill=couleurN8n, text=white, font=\small\bfseries, rounded corners=3pt, inner sep=4pt]
+  at (0.6,2.1) {Workflow n8n};
+
+% ---------------- modules ----------------
+\node[m] (prep)  at (0,0)    {\textbf{Préparation}\\lecture du corpus\\126 appels\\(42 $\times$ 3)};
+\node[m] (boucle) at (3.0,0) {\textbf{Boucle}\\un appel\\à la fois};
+\node[m] (appel) at (6.0,0)  {\textbf{Appel du LLM}\\requête API\\selon le fournisseur};
+\node[m] (jug)   at (9.0,0)  {\textbf{Jugement}\\extraction du JSON\\et statut};
+\node[m] (ecr)   at (12.0,0) {\textbf{Écriture}\\une ligne JSON\\par exécution};
+
+% ---------------- flux ----------------
+\draw[f] (prep) -- (boucle);
+\draw[f] (boucle) -- (appel);
+\draw[f] (appel) -- (jug);
+\draw[f] (jug) -- (ecr);
+% relance si erreur transitoire
+\draw[retour] (jug.north) -- (9.0,1.45) -- node[lab, above]{relance si erreur (quota, délai)} (6.0,1.45) -- (appel.north);
+% appel suivant
+\draw[retour] (ecr.south) -- (12.0,-1.7) -- node[lab, below]{appel suivant} (3.0,-1.7) -- (boucle.south);
+
+% ---------------- entrée : échantillons ----------------
+\node[draw=couleurCorpusBord, fill=couleurCorpus, thick, rounded corners=3pt,
+      align=center, text width=2.6cm, minimum height=1.9cm, font=\small]
+      (corpus) at (-4.4,0) {\textbf{42 échantillons}\\S000 à S041};
+\draw[->, very thick, draw=couleurCorpusBord] (corpus.east) -- (-1.75,0);
+
+% ---------------- sortie : fichiers JSONL ----------------
+\draw[->, very thick, draw=couleurOrangeBord] (13.75,0) -- (15.45,0);
+\foreach \d in {0.40, 0.20, 0}{
+  \filldraw[draw=couleurOrangeBord, fill=couleurOrange, thick]
+    (15.6+\d,-1.6+\d) -- (15.6+\d,1.6+\d) -- (17.6+\d,1.6+\d) -- (18.3+\d,0.9+\d) -- (18.3+\d,-1.6+\d) -- cycle;
+  \filldraw[draw=couleurOrangeBord, fill=white, thick]
+    (17.6+\d,1.6+\d) -- (17.6+\d,0.9+\d) -- (18.3+\d,0.9+\d);
+}
+\node[font=\bfseries\small, text=couleurOrangeBord] at (16.4,1.2) {JSON};
+\node[font=\scriptsize\ttfamily, align=left, anchor=north west] at (15.7,0.8)
+  {\{"meta": \{…\},\\\ "mapping": \{…\},\\\ "usage": \{…\}\}\\\{…\}\\\{…\}};
+\node[font=\small, align=center, anchor=north] at (16.95,-1.8)
+  {\textbf{Fichiers de résultats}\\\texttt{resultats\_\_<modèle>.jsonl}};
+\end{tikzpicture}%
+}

@@ -1,0 +1,55 @@
+% Figure 2.6 --- Le moteur de mapping : proposer, puis vérifier et confronter
+\begin{tikzpicture}[etape/.style={fbase, minimum height=2cm, inner sep=6pt}]
+
+% ------------------------------------------------------ chaîne du haut
+\node[etape, fgris,  text width=2.7cm, anchor=west] at (0,0) (req)
+     {Requête\\[2pt] « lsass credential\\ dumping »};
+\node[etape, fbleu,  text width=3.6cm, anchor=west] at (4.0cm,0) (norm)
+     {Normalisation\\[3pt] {\ttfamily\scriptsize t1003.1 $\rightarrow$ T1003.001}\\[2pt]
+      {\ttfamily\scriptsize lsass~$\cdot$~credenti~$\cdot$~dump}};
+\node[etape, fvert,  text width=6.0cm, anchor=west] at (9.0cm,0) (appar)
+     {Appariement pondéré\\[3pt]
+      nom, acronyme $\times$1,0 $\cdot$ parente, entité $\times$0,8\\[2pt]
+      tactique $\times$0,6 $\cdot$ description $\times$0,35};
+\node[etape, fvert,  text width=4.2cm, anchor=west] at (16.4cm,0) (cand)
+     {Candidats scorés\\[3pt] T1003.001 : 0,894 (fort)\\[2pt] + preuves \emph{matched}};
+
+\draw[fleche] (req.east)   -- (norm.west);
+\draw[fleche] (norm.east)  -- (appar.west);
+\draw[fleche] (appar.east) -- (cand.west);
+
+% ----------------------------------------------------- chaîne du bas
+\node[etape, fpointille, text width=3.6cm, minimum height=1.8cm, anchor=north west]
+      at (0,-4.75cm) (nomap)
+     {« pas de mapping »\\[3pt] si le meilleur score $<$ 0,3};
+\node[etape, fbleu, text width=3.9cm, minimum height=1.8cm, anchor=north west]
+      at (5.2cm,-4.75cm) (gett)
+     {{\ttfamily get\_technique}\\[3pt] vérifier la fiche complète};
+\node[etape, for, text width=4.3cm, minimum height=1.8cm, anchor=north west]
+      at (10.4cm,-4.75cm) (sint)
+     {{\ttfamily search\_internal}\\[3pt] confronter aux fiches internes};
+\node[etape, frouge, text width=3.9cm, minimum height=1.8cm, anchor=north west]
+      at (16.2cm,-4.75cm) (retenu)
+     {Mapping retenu\\[3pt] {\ttfamily T1003.001}};
+
+\draw[fleche] (gett.east) -- (sint.west);
+\draw[fleche] (sint.east) -- (retenu.west);
+
+% ------------------------------------------------------------- index
+\node[etape, for, text width=8.0cm, minimum height=0cm, anchor=north]
+      at (12.2cm,-2.55cm) (index)
+     {Index de la base ATT\&CK 19.2, en lecture seule\\[3pt]
+      noms $\cdot$ acronymes $\cdot$ descriptions $\cdot$ entités $\cdot$ tactiques};
+\draw[fleche] (index.north) -- (appar.south);
+
+% --------------------------------------------------------- aiguillage
+\coordinate (p1) at ($(cand.south)+(0,-0.8cm)$);
+\coordinate (p2) at (gett.north  |- p1);
+\coordinate (p3) at (nomap.north |- p1);
+
+\draw[line width=0.8pt, draw=black!55] (cand.south) -- (p1) -- (p2);
+\draw[fleche] (p2) -- (gett.north);
+\draw[dashed, line width=0.8pt, draw=black!45] (p2) -- (p3);
+\draw[fleche, dashed, draw=black!45] (p3) -- (nomap.north);
+
+\end{tikzpicture}

@@ -1,0 +1,342 @@
+RAPPORT — 10 modeles (claude-opus-4-8, claude-sonnet-5, ...) : sans MCP
+==============================================================================
+
+    [i] 2 iteration(s) ABANDONNEE(S) — jamais abouties, erreur d'infrastructure, effectif par modele :
+          google/gemini-3.1-pro-preview    1
+          google/gemini-3.8-flash          1
+
+====================================================================================================
+ETIQUETAGE — une etiquette par niveau et par execution
+----------------------------------------------------------------------------------------------------
+  VP : identifiant predit egal a l'attendu.
+  FP : identifiant predit different de l'attendu — affirmation fausse.
+  A  : abstention, aucune reponse a ce niveau (compte au rappel seul).
+  H  : HALLUCINATION, identifiant qui n'existe dans aucune version du
+       referentiel (ni vivant, ni revoque, ni deprecie).
+  F  : ANCIENNE VERSION, identifiant retire de la version figee mais
+       vivant dans une version anterieure (ICS v8, PRE-ATT&CK) —
+       referentiel interne perime, distinct de l'invention.
+  O  : OBSOLETE, identifiant revoque dont le remplacant officiel est
+       la bonne reponse.
+  MM : MAUVAISE MATRICE, identifiant pris hors de la matrice de
+       l'echantillon — sous-ensemble des FP.
+  Une prediction fausse compte FP *et* FN : elle affirme du faux et
+  manque la bonne reponse. Precision = VP/(VP+FP), Rappel = VP/(VP+FN).
+  Integrite N : controle du script, pas une metrique. Chaque
+       prediction porte une etiquette et une seule, donc les colonnes
+       VP + FP + H + O + A doivent additionner exactement N
+       (F est un sous-compte de FP, affiche pour lecture,
+       jamais additionne).
+       « oui » = l'egalite tombe juste.
+       Sinon la cellule donne le TOTAL A ATTEINDRE, l'ecart entre
+       parentheses, et les executions fautives quand elles sont
+       identifiables (echantillon#execution). Les F1 de la ligne
+       sont alors a rejeter tant que l'ecart n'est pas explique.
+  Sous-technique : uniquement les echantillons qui en possedent une.
+====================================================================================================
+Modele                   Condition       Niveau              N    VP    FP     H     F     O     A    MM  Integrite N
+claude-opus-4-8          sans            Tactique          126    74    52     0     0     0     0     0  oui
+claude-opus-4-8          sans            Technique         126    71    54     0     0     1     0     0  oui
+claude-opus-4-8          sans            Sous-technique     66    42    21     0     0     3     0     0  oui
+claude-sonnet-5          sans            Tactique          126    64    60     0     0     0     2     0  oui
+claude-sonnet-5          sans            Technique         126    67    54     0     0     3     2     0  oui
+claude-sonnet-5          sans            Sous-technique     66    40    22     0     0     3     1     0  oui
+deepseek-v4-flash        sans            Tactique          126    75    48     3     0     0     0     3  oui
+deepseek-v4-flash        sans            Technique         126    76    48     0     0     2     0     1  oui
+deepseek-v4-flash        sans            Sous-technique     66    41    22     0     0     3     0     0  oui
+deepseek-v4-pro          sans            Tactique          126    81    43     2     0     0     0     4  oui
+deepseek-v4-pro          sans            Technique         126    72    52     0     1     2     0     1  oui
+deepseek-v4-pro          sans            Sous-technique     66    44    19     0     0     3     0     0  oui
+google/gemini-3.1-pro-pr sans            Tactique          125    70    54     1     0     0     0     0  oui
+google/gemini-3.1-pro-pr sans            Technique         125    60    62     0     3     3     0     1  oui
+google/gemini-3.1-pro-pr sans            Sous-technique     65    42    20     0     0     3     0     0  oui
+google/gemini-3.8-flash  sans            Tactique          125    81    44     0     0     0     0     0  oui
+google/gemini-3.8-flash  sans            Technique         125    75    47     0     1     3     0     0  oui
+google/gemini-3.8-flash  sans            Sous-technique     66    44    19     0     0     3     0     0  oui
+gpt-5.6-luna             sans            Tactique          126    63    49    13     0     0     1     4  oui
+gpt-5.6-luna             sans            Technique         126    66    57     0     0     2     1     5  oui
+gpt-5.6-luna             sans            Sous-technique     66    42    21     0     0     3     0     0  oui
+gpt-5.6-sol              sans            Tactique          126    82    44     0     0     0     0     0  oui
+gpt-5.6-sol              sans            Technique         126    76    48     0     6     2     0     0  oui
+gpt-5.6-sol              sans            Sous-technique     66    42    21     0     0     3     0     0  oui
+kimi-k3                  sans            Tactique          126    68    57     1     0     0     0     3  oui
+kimi-k3                  sans            Technique         126    71    53     0     1     2     0     0  oui
+kimi-k3                  sans            Sous-technique     66    41    22     0     0     3     0     0  oui
+qwen3.8-2.4t-a95b        sans            Tactique          126    62    62     2     1     0     0     6  oui
+qwen3.8-2.4t-a95b        sans            Technique         126    72    54     0     4     0     0     1  oui
+qwen3.8-2.4t-a95b        sans            Sous-technique     66    42    21     0     0     3     0     0  oui
+F additionne les identifiants DEPRECIES de la version figee (retires
+sans remplacant, ex. T0808) et ceux d'une version historique absents
+de la figee (ex. TA0024) ; les deprecies restent des FP dans N.
+
+====================================================================================================
+ATTRIBUTS DE DIAGNOSTIC
+----------------------------------------------------------------------------------------------------
+  MM : identifiants hors de la matrice de l'echantillon, 3 niveaux.
+  s-t nie : repond « aucune » alors qu'une sous-technique existe —
+            une affirmation fausse, pas une abstention.
+  scis19 : TA0005 propose la ou TA0112 est attendu (scission v19).
+  format : reponses rejetees imputables au modele (format non
+           respecte, JSON invalide, reponse vide, troncature).
+  Sur-sp. : sur-specification — sous-technique proposee la ou la
+            verite de terrain n'en attend aucune.
+  N1, N2 : sous-specification — technique sans sous-technique la ou
+           elle est attendue. Le format impose les trois champs :
+           une valeur nulle est une propriete du protocole.
+====================================================================================================
+Modele                   Condition          MM  s-t nie  scis19  format  Sur-sp.     N1     N2
+claude-opus-4-8          sans                0        9       9       0    10.0%   0.0%   0.0%
+claude-sonnet-5          sans                0        5       6       2    15.0%   0.0%   0.0%
+deepseek-v4-flash        sans                4        7      10       0    11.7%   0.0%   0.0%
+deepseek-v4-pro          sans                5        3      10       0    18.3%   0.0%   0.0%
+google/gemini-3.1-pro-pr sans                1       11       9       0    25.0%   0.0%   0.0%
+google/gemini-3.8-flash  sans                0        9      12       0    10.2%   0.0%   0.0%
+gpt-5.6-luna             sans                9        7       7       1    26.7%   0.0%   0.0%
+gpt-5.6-sol              sans                0       14      12       0    10.0%   0.0%   0.0%
+kimi-k3                  sans                3        9       9       0    10.0%   0.0%   0.0%
+qwen3.8-2.4t-a95b        sans                7        9       9       0    11.7%   0.0%   0.0%
+
+====================================================================================================
+VENTILATION PAR MATRICE — F1 stricts
+----------------------------------------------------------------------------------------------------
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Les memes executions, reparties selon la matrice prescrite par
+  l'echantillon : enterprise (zone TI) ou ics (zone TO).
+  n s-t : echantillons possedant une sous-technique attendue.
+====================================================================================================
+Modele                   Condition       Matrice          n  F1 tact  F1 tech   F1 s-t  n s-t
+claude-opus-4-8          sans            enterprise      84    0.619    0.714    0.667     63
+claude-opus-4-8          sans            ics             42    0.524    0.262    0.000      3
+claude-sonnet-5          sans            enterprise      84    0.611    0.659    0.640     63
+claude-sonnet-5          sans            ics             42    0.313    0.289    0.000      3
+deepseek-v4-flash        sans            enterprise      84    0.667    0.726    0.651     63
+deepseek-v4-flash        sans            ics             42    0.452    0.357    0.000      3
+deepseek-v4-pro          sans            enterprise      84    0.714    0.750    0.698     63
+deepseek-v4-pro          sans            ics             42    0.500    0.214    0.000      3
+google/gemini-3.1-pro-pr sans            enterprise      83    0.602    0.639    0.677     62
+google/gemini-3.1-pro-pr sans            ics             42    0.476    0.167    0.000      3
+google/gemini-3.8-flash  sans            enterprise      84    0.667    0.738    0.698     63
+google/gemini-3.8-flash  sans            ics             41    0.610    0.317    0.000      3
+gpt-5.6-luna             sans            enterprise      84    0.667    0.667    0.667     63
+gpt-5.6-luna             sans            ics             42    0.169    0.241    0.000      3
+gpt-5.6-sol              sans            enterprise      84    0.643    0.679    0.667     63
+gpt-5.6-sol              sans            ics             42    0.667    0.452    0.000      3
+kimi-k3                  sans            enterprise      84    0.679    0.714    0.651     63
+kimi-k3                  sans            ics             42    0.262    0.262    0.000      3
+qwen3.8-2.4t-a95b        sans            enterprise      84    0.679    0.702    0.667     63
+qwen3.8-2.4t-a95b        sans            ics             42    0.119    0.310    0.000      3
+
+==============================================================================
+QUALITE DU MAPPING — BASE STRICTE
+------------------------------------------------------------------------------
+  Base STRICTE : les identifiants obsoletes comptent comme des erreurs.
+  Base TOLERANTE : ils sont credites, leur remplacant officiel etant la
+  bonne reponse. L'ecart entre les deux mesure l'actualite du referentiel
+  interne du modele, et rien d'autre.
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Une ligne par NIVEAU : les trois se lisent l'un sous l'autre.
+  MauvMat : effectif des identifiants hors matrice a ce niveau.
+  Halluc / Fant / Obsol : part des affirmations de ce niveau.
+  Abst. : part des reponses sans identifiant a ce niveau.
+  F1 : moyenne harmonique de la precision et du rappel.
+  Stab. : part des echantillons dont les executions repetees
+          rendent le meme triplet — une valeur par modele et
+          condition, ecrite sur la premiere ligne du bloc.
+==============================================================================
+Modele                   Condition       Niveau           MauvMat  Halluc   Fant   Obsol   Abst.       F1   Stab.
+claude-opus-4-8          sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.587   76.2%
+                                         Technique              0    0.0%   0.0%    0.8%    0.0%    0.563        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.636        
+claude-sonnet-5          sans            Tactique               0    0.0%   0.0%    0.0%    1.6%    0.512   66.7%
+                                         Technique              0    0.0%   0.0%    2.4%    1.6%    0.536        
+                                         Sous-technique         0    0.0%   0.0%    4.6%    1.5%    0.611        
+deepseek-v4-flash        sans            Tactique               3    2.4%   0.0%    0.0%    0.0%    0.595   52.4%
+                                         Technique              1    0.0%   0.0%    1.6%    0.0%    0.603        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.621        
+deepseek-v4-pro          sans            Tactique               4    1.6%   0.0%    0.0%    0.0%    0.643   42.9%
+                                         Technique              1    0.0%   0.8%    1.6%    0.0%    0.571        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.667        
+google/gemini-3.1-pro-pr sans            Tactique               0    0.8%   0.0%    0.0%    0.0%    0.560   88.1%
+                                         Technique              1    0.0%   2.4%    2.4%    0.0%    0.480        
+                                         Sous-technique         0    0.0%   0.0%    4.6%    0.0%    0.646        
+google/gemini-3.8-flash  sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.648   81.0%
+                                         Technique              0    0.0%   0.8%    2.4%    0.0%    0.600        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.667        
+gpt-5.6-luna             sans            Tactique               4   10.4%   0.0%    0.0%    0.8%    0.502   54.8%
+                                         Technique              5    0.0%   0.0%    1.6%    0.8%    0.526        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.636        
+gpt-5.6-sol              sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.651   64.3%
+                                         Technique              0    0.0%   4.8%    1.6%    0.0%    0.603        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.636        
+kimi-k3                  sans            Tactique               3    0.8%   0.0%    0.0%    0.0%    0.540   59.5%
+                                         Technique              0    0.0%   0.8%    1.6%    0.0%    0.563        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.621        
+qwen3.8-2.4t-a95b        sans            Tactique               6    1.6%   0.8%    0.0%    0.0%    0.492   57.1%
+                                         Technique              1    0.0%   3.2%    0.0%    0.0%    0.571        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.636        
+
+F1 techniques HORS REJETS (methodologie 2.2 : les reponses
+inexploitables imputables au modele sont des abstentions ; les
+F1 sont aussi recalcules en les excluant du denominateur) :
+  claude-sonnet-5          sans            2 rejet(s) | F1 tech S 0.540 | T 0.565
+  gpt-5.6-luna             sans            1 rejet(s) | F1 tech S 0.528 | T 0.544
+
+==============================================================================
+QUALITE DU MAPPING — BASE TOLERANTE
+------------------------------------------------------------------------------
+  Base STRICTE : les identifiants obsoletes comptent comme des erreurs.
+  Base TOLERANTE : ils sont credites, leur remplacant officiel etant la
+  bonne reponse. L'ecart entre les deux mesure l'actualite du referentiel
+  interne du modele, et rien d'autre.
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Une ligne par NIVEAU : les trois se lisent l'un sous l'autre.
+  MauvMat : effectif des identifiants hors matrice a ce niveau.
+  Halluc / Fant / Obsol : part des affirmations de ce niveau.
+  Abst. : part des reponses sans identifiant a ce niveau.
+  F1 : moyenne harmonique de la precision et du rappel.
+  Stab. : part des echantillons dont les executions repetees
+          rendent le meme triplet — une valeur par modele et
+          condition, ecrite sur la premiere ligne du bloc.
+==============================================================================
+Modele                   Condition       Niveau           MauvMat  Halluc   Fant   Obsol   Abst.       F1   Stab.
+claude-opus-4-8          sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.587   76.2%
+                                         Technique              0    0.0%   0.0%    0.8%    0.0%    0.571        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.682        
+claude-sonnet-5          sans            Tactique               0    0.0%   0.0%    0.0%    1.6%    0.512   66.7%
+                                         Technique              0    0.0%   0.0%    2.4%    1.6%    0.560        
+                                         Sous-technique         0    0.0%   0.0%    4.6%    1.5%    0.656        
+deepseek-v4-flash        sans            Tactique               3    2.4%   0.0%    0.0%    0.0%    0.595   52.4%
+                                         Technique              1    0.0%   0.0%    1.6%    0.0%    0.619        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.667        
+deepseek-v4-pro          sans            Tactique               4    1.6%   0.0%    0.0%    0.0%    0.643   42.9%
+                                         Technique              1    0.0%   0.8%    1.6%    0.0%    0.587        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.712        
+google/gemini-3.1-pro-pr sans            Tactique               0    0.8%   0.0%    0.0%    0.0%    0.560   88.1%
+                                         Technique              1    0.0%   2.4%    2.4%    0.0%    0.504        
+                                         Sous-technique         0    0.0%   0.0%    4.6%    0.0%    0.692        
+google/gemini-3.8-flash  sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.648   81.0%
+                                         Technique              0    0.0%   0.8%    2.4%    0.0%    0.624        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.712        
+gpt-5.6-luna             sans            Tactique               4   10.4%   0.0%    0.0%    0.8%    0.502   54.8%
+                                         Technique              5    0.0%   0.0%    1.6%    0.8%    0.542        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.682        
+gpt-5.6-sol              sans            Tactique               0    0.0%   0.0%    0.0%    0.0%    0.651   64.3%
+                                         Technique              0    0.0%   4.8%    1.6%    0.0%    0.619        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.682        
+kimi-k3                  sans            Tactique               3    0.8%   0.0%    0.0%    0.0%    0.540   59.5%
+                                         Technique              0    0.0%   0.8%    1.6%    0.0%    0.579        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.667        
+qwen3.8-2.4t-a95b        sans            Tactique               6    1.6%   0.8%    0.0%    0.0%    0.492   57.1%
+                                         Technique              1    0.0%   3.2%    0.0%    0.0%    0.571        
+                                         Sous-technique         0    0.0%   0.0%    4.5%    0.0%    0.682        
+
+==============================================================================
+DIAGNOSTIC MCP — les deux questions, par modele
+------------------------------------------------------------------------------
+  Utilise : part des executions ayant emis au moins un appel
+            d'outil (100 % par construction si le premier appel
+            est impose par le harnais).
+  Appels/ex : nombre moyen d'appels d'outil par execution.
+  Rep. ancrees : la TECHNIQUE retenue a ete rendue par un outil
+            du serveur — le mapping s'appuie sur le referentiel.
+  Prefere memoire : la technique retenue ne figure dans aucune
+            reponse du serveur — le modele a repondu de memoire
+            alors que les outils etaient a sa disposition.
+==============================================================================
+Modele                      Utilise  Appels/ex Rep. ancrees Prefere memoire
+
+==============================================================================
+COUT — jetons, temps et efficacite
+------------------------------------------------------------------------------
+  Jetons : moyenne par execution, telle que l'API la rapporte.
+           Avec cache de prompt, la consommation reelle vaut
+           entree + cache lu + cache ecrit ; le cout en dollars se
+           calcule sur cette somme, pas sur la seule entree.
+  p50 / p95 : latence mediane et 95e centile de l'appel reussi, en
+           millisecondes (interpolation NumPy). Le temps est un cout
+           d'exploitation ; le p95 est le pire cas ordinaire.
+  Effic. S / T : F1 technique par millier de jetons, en base stricte
+           puis tolerante. Seul indicateur du tableau qui depende de
+           la base.
+  Argent : cout de la campagne — entree, sortie et cache
+           factures chacun a son tarif, sur les seules
+           executions retenues. Tarifs du 16 septembre 2026 (tarifs.json) ;
+           « - » = tarif non renseigne pour ce modele.
+==============================================================================
+Rang Modele                   Condition           Jetons    p50 ms    p95 ms  Effic. S  Effic. T     Argent
+-    claude-opus-4-8          sans                  6572      4282      6050     0.086     0.087     4.63 $
+-    claude-sonnet-5          sans                  6740      4291     10994     0.080     0.083     2.06 $
+-    deepseek-v4-flash        sans                  5594      3407     19812     0.108     0.111     0.12 $
+-    deepseek-v4-pro          sans                  7941     40724    151756     0.072     0.074     0.62 $
+-    google/gemini-3.1-pro-pr sans                  9023     18532    103824     0.053     0.056     6.23 $
+-    google/gemini-3.8-flash  sans                  7566     10664     44482     0.079     0.082     1.36 $
+-    gpt-5.6-luna             sans                  5004      4626     28758     0.105     0.108     0.22 $
+-    gpt-5.6-sol              sans                  4649      6086     24145     0.130     0.133     3.09 $
+-    kimi-k3                  sans                  6027     24034    202504     0.094     0.096     4.76 $
+-    qwen3.8-2.4t-a95b        sans                  9641     82854    269617     0.059     0.059     4.49 $
+
+==============================================================================
+IDENTIFIANTS FAUTIFS — hallucinations et hors matrice
+------------------------------------------------------------------------------
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Hallucination : l'identifiant n'existe dans aucune version
+            du referentiel — le modele l'a fabrique.
+  Hors matrice : l'identifiant existe, mais dans l'autre
+            matrice que celle prescrite par l'echantillon.
+  Seuls les modeles concernes figurent ; xN = occurrences
+            sur l'ensemble des executions de l'evaluation.
+==============================================================================
+Modele                   Condition       Hallucinations                       Hors matrice
+deepseek-v4-flash        sans            TA0113, TA0114 x2                    T1059, TA0112 x3
+deepseek-v4-pro          sans            TA0113, TA0116                       T1046, TA0007 x3, TA0043
+google/gemini-3.1-pro-pr sans            TA0089                               T1046
+gpt-5.6-luna             sans            TA0113, TA0114 x2, TA0115 x7,        T1059 x4, T1565, TA0002 x3, TA0040
+                                         TA0116 x2, TA0118                    
+kimi-k3                  sans            TA0113                               TA0004, TA0007, TA0112
+qwen3.8-2.4t-a95b        sans            TA0116, TA0119                       T1059, TA0002 x2, TA0007, TA0009,
+                                                                              TA0112 x2
+
+==============================================================================
+TABLEAU COMPARATIF — une ligne par evaluation
+------------------------------------------------------------------------------
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  F1 strict : par niveau, les identifiants obsoletes
+            comptant comme des erreurs.
+  Jetons : moyenne par execution (entree + sortie telles que
+            l'API les rapporte).
+  p50 : latence mediane de l'appel reussi, en millisecondes.
+  Stab. : part des echantillons dont les executions repetees
+            rendent le meme triplet.
+  Sous-sp. : technique rendue sans sa sous-technique la ou
+            la verite de terrain en attend une.
+  Sur-sp. : sous-technique proposee la ou aucune n'est
+            attendue.
+  Obsol. / Abst. : part des affirmations obsoletes, et part
+            des reponses sans identifiant, tous niveaux.
+==============================================================================
+                                                  F1 strict                                                                 
+Modele                   Condition         Tact.   Tech.    S-t.   Jetons   p50 ms   Stab. Sous-sp.  Sur-sp.  Obsol.   Abst.
+claude-opus-4-8          sans              0.587   0.563   0.636     6572     4282   76.2%     0.0%    10.0%    1.3%    0.0%
+claude-sonnet-5          sans              0.512   0.536   0.611     6740     4291   66.7%     0.0%    15.0%    1.9%    1.6%
+deepseek-v4-flash        sans              0.595   0.603   0.621     5594     3407   52.4%     0.0%    11.7%    1.6%    0.0%
+deepseek-v4-pro          sans              0.643   0.571   0.667     7941    40724   42.9%     0.0%    18.3%    1.6%    0.0%
+google/gemini-3.1-pro-pr sans              0.560   0.480   0.646     9023    18532   88.1%     0.0%    25.0%    1.9%    0.0%
+google/gemini-3.8-flash  sans              0.648   0.600   0.667     7566    10664   81.0%     0.0%    10.2%    1.9%    0.0%
+gpt-5.6-luna             sans              0.502   0.526   0.636     5004     4626   54.8%     0.0%    26.7%    1.6%    0.6%
+gpt-5.6-sol              sans              0.651   0.603   0.636     4649     6086   64.3%     0.0%    10.0%    1.6%    0.0%
+kimi-k3                  sans              0.540   0.563   0.621     6027    24034   59.5%     0.0%    10.0%    1.6%    0.0%
+qwen3.8-2.4t-a95b        sans              0.492   0.571   0.636     9641    82854   57.1%     0.0%    11.7%    0.9%    0.0%
+[!] openpyxl n'est pas installe : le classeur xlsx ne
+    peut pas etre produit. Les memes donnees restent
+    disponibles dans les trois CSV et le rapport texte.
+    Pour le classeur : pip install openpyxl
+
+[*] donnees CSV : G:\Mon disque\Etudes\Maitrise UQAC\Essaie_2026\mcp-mitre-att&ck\cas_d_usage\workflow_evaluation\rapports\metriques_tous-les-modeles_sans.csv
+    trois sections dans le meme fichier — METRIQUES PAR
+    MODELE, ETIQUETAGE DETAILLE, USAGE MCP — chacune ouverte
+    par une ligne ### et fermee par une ligne vide.

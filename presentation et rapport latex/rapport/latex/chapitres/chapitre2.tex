@@ -1,0 +1,959 @@
+%% ===================================================================
+%% CHAPITRE 2 --- L'approche MCP
+%% ===================================================================
+\chapter{L'approche MCP}\label{chap:approche-mcp}
+
+\section{Introduction}\label{sec:ch2-1}
+
+\emph{[Section à rédiger.]}
+
+\section{Le serveur MCP}\label{sec:ch2-2}
+
+MITRE ATT\&CK est un catalogue public de comportements d'attaquants informatiques, publié sous la forme d'un fichier de données que chacun peut télécharger. Notre serveur MCP est le connecteur qui expose les matrices Enterprise et ICS de ce référentiel aux modèles d'intelligence artificielle. Voici comment le tout fonctionne.
+
+\subsection{Architecture : hôte, client et serveur}\label{sec:ch2-2-1}
+
+Le MCP relie trois rôles : l'hôte porte le modèle, le client y maintient une connexion un-à-un avec chaque serveur, et le serveur expose les outils que le modèle invoque --- lequel ne s'adresse jamais directement au serveur (figure~\ref{fig:ch2-archi}).
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-1-architecture}
+\caption{Architecture MCP. Le modèle raisonne dans l'hôte ; le client porte la connexion ; le serveur répond à partir de ses deux sources, en lecture seule.}\label{fig:ch2-archi}
+\end{figure}
+
+\subsection{Les deux sources du serveur}\label{sec:ch2-2-2}
+
+Le serveur sert deux sources, l'une publique, l'autre propre à l'organisation.
+
+\textbf{Le référentiel MITRE.} La base est chargée depuis les paquets STIX publiés par MITRE, où chaque élément est un objet --- tactique, technique, sous-technique, mitigation, groupe, logiciel, campagne --- et où chaque lien est lui-même un objet (figure~\ref{fig:ch2-referentiel}) : la technique appartient à une tactique de la \emph{kill chain}, \texttt{subtechnique-of} rattache \emph{LSASS Memory} à sa parente, \texttt{mitigates} relie une mesure de défense à la technique, \texttt{uses} relie un groupe à la sous-technique qu'il emploie, et \texttt{revoked-by} conduit d'un identifiant retiré à son remplaçant vivant. La fiche renvoyée par \texttt{get\_technique} est assemblée en suivant ces liens : tactique, mitigations propres et héritées de la parente, groupes, sources de détection.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-2-referentiel}
+\caption{Le référentiel MITRE tel que le serveur le lit : des objets reliés par des relations explicites.}\label{fig:ch2-referentiel}
+\end{figure}
+
+\textbf{Le référentiel interne.} Un fichier JSON de fiches aux identifiants propres à l'organisation, chacune rattachée à une technique MITRE dont le statut est signalé. Voici une fiche réelle du référentiel :
+
+\begin{verbatim}
+{"id": "THQ0001",
+ "name": "Phishing imitant le portail RH interne",
+ "description": "Leurre imitant le portail RH pour voler des identifiants.",
+ "technique_mitre_liee": "T1566.002",
+ "tactique": "initial-access",
+ "source_cti": "incident-2026-03",
+ "statut": "valide"}
+\end{verbatim}
+
+\subsection{Le chemin d'une requête}\label{sec:ch2-2-3}
+
+Un analyste soumet un signal au modèle : « Comment interprètes-tu ce signal avec le référentiel MITRE ATT\&CK ? », accompagné d'une trace Zeek où une même adresse ouvre, en quelques secondes, des connexions très brèves vers le port 502 --- celui de Modbus --- de sept adresses voisines. Le modèle décide d'interroger le serveur ; l'appel passe par le client MCP, qui porte la connexion. La figure~\ref{fig:ch2-chemin} montre le chemin parcouru dans le serveur, et chaque étape est développée ci-dessous en suivant cette même requête, de son émission à sa trace d'audit. La requête est réelle : c'est la première recherche de l'exécution 1 de l'échantillon S000, celle qui ouvre notre campagne d'évaluation, et toutes les valeurs qui suivent sont tirées telles quelles du journal d'audit du serveur, les champs longs étant abrégés par \texttt{.....} La figure~\ref{fig:ch2-echanges}, plus loin, resituera cet appel parmi les quatorze échanges de cette même exécution.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-3-chemin}
+\caption{Chemin d'une requête dans le serveur MCP.}\label{fig:ch2-chemin}
+\end{figure}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Format des messages.} Les échanges suivent JSON-RPC 2.0, le format retenu par la spécification MCP : un objet JSON portant un identifiant, la méthode demandée et ses paramètres. Le serveur porte ce dialogue sur l'entrée et la sortie standard du processus, et sur un service HTTP local pour les clients qui ne savent pas parler ainsi ; les deux voies traversent le même code et ne changent rien à ce qui suit. Pour notre signal, le modèle formule une requête de recherche dans le vocabulaire ATT\&CK et le client émet :
+\end{itemize}
+
+\begin{verbatim}
+{"jsonrpc": "2.0", "id": "toolu_01Qmsp.....",
+ "method": "tools/call",
+ "params": {"name": "search_techniques",
+            "arguments": {
+              "query": "network scan modbus port 502 enumerate devices",
+              "matrix": "ICS"}}}
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Décodage.} Le champ \texttt{method} détermine le traitement. Les noms de méthodes sont imposés par la spécification MCP et le dialogue typique en enchaîne trois : \texttt{initialize} (« bonjour, qui es-tu ? »), \texttt{tools/list} (« que sais-tu faire ? »), puis \texttt{tools/call} (« exécute \texttt{search\_techniques} avec ce mot-clé »). Une quatrième, \texttt{ping}, peut être émise par l'un ou l'autre côté à tout moment : le destinataire doit répondre aussitôt par un résultat vide, ce qui atteste que la connexion est ouverte et le pair réactif ; sans réponse, l'émetteur la considère morte et la ferme. C'est par \texttt{tools/list}, en début de session, que le modèle apprend quels outils existent et quand les employer (figure~\ref{fig:ch2-outils}) ; le tableau~\ref{tab:ch2-outils} en donne la liste. Une ligne illisible est journalisée puis écartée, sans bloquer les requêtes suivantes.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-4-enumeration}
+\caption{L'énumération des outils : le modèle lit là les dix-huit descriptions, figées dans le code, qui guident ensuite son choix d'outil.}\label{fig:ch2-outils}
+\end{figure}
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.3369}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.6631}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Outil}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Description exposée au modèle}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{search\_techniques} & Recherche lexicale de techniques candidates ; une requête pour un comportement, résultats scorés avec leurs preuves \\
+\texttt{get\_technique} & Détail complet d'une technique pour confirmer un candidat : tactiques, plateformes, détections, sous-techniques, groupes, logiciels, campagnes, mitigations propres et de la parente, équipements ICS ; redirige un identifiant révoqué, signale un déprécié \\
+\texttt{get\_tactics} & Les tactiques Enterprise et ICS dans l'ordre de la \emph{kill chain} \\
+\texttt{get\_tactic} & Une tactique et ses techniques, parentes et sous-techniques \\
+\texttt{get\_mitigations} & Les contre-mesures associées à une technique, pour produire une recommandation \\
+\texttt{get\_mitigation} & Une mesure de mitigation et toutes les techniques qu'elle couvre \\
+\texttt{get\_groups} & Groupes APT : les plus actifs, ou ceux qui emploient une technique donnée, directement ou en campagne \\
+\texttt{get\_group} & Détail d'un groupe : alias, techniques directes, techniques observées en campagne, logiciels, campagnes attribuées \\
+\texttt{get\_software} & Logiciels et maliciels : les plus employés, ou ceux associés à une technique \\
+\texttt{get\_campaign} & Détail d'une campagne : période, groupes attribués, techniques et logiciels observés \\
+\texttt{get\_asset} & Équipement ICS --- automate, interface, unité distante, historien --- et les techniques qui le visent \\
+\texttt{get\_datasources} & Techniques détectables depuis une source de journaux donnée \\
+\texttt{list\_internal\_techniques} & Référentiel interne : liste complète et prochain identifiant libre, à appeler avant toute proposition de fiche \\
+\texttt{get\_internal\_technique} & Détail d'une fiche interne, avec la technique MITRE liée et son statut \\
+\texttt{search\_internal} & Recherche lexicale dans le référentiel interne ; obligatoire avant de proposer une fiche, pour écarter un doublon \\
+\texttt{internal\_reload} & Relecture du référentiel interne sans redémarrer le serveur ; le fichier n'est jamais écrit \\
+\texttt{mitre\_stats} & Version du serveur, versions ATT\&CK chargées et statistiques de la base \\
+\texttt{mitre\_update} & Retéléchargement des deux matrices, avec bascule seulement si les deux réussissent \\
+\end{longtable}
+\legendetableau{Les dix-huit outils exposés et leur description, telle que le modèle la lit.}{tab:ch2-outils}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Un décodage qui ne se tait jamais.} Un client mal réglé ne doit pas produire un silence, car le silence laisse le modèle attendre une réponse qui ne viendra pas. Trois défauts courants sont donc traités explicitement. Un message étalé sur plusieurs lignes est assemblé dans un tampon borné à un mégaoctet, les accolades étant comptées hors des chaînes de caractères : un \texttt{\}} présent dans un extrait de journal ne fait plus croire que le message est terminé. Ce qui reste illisible reçoit l'erreur \texttt{-32700}. Une enveloppe mal formée --- message qui n'est pas un objet, \texttt{params} qui n'en est pas un, nom d'outil qui n'est pas du texte, \texttt{arguments} qui n'est pas un objet --- est refusée avec le code correspondant, \texttt{-32600} ou \texttt{-32602}. Enfin la version de protocole est négociée au lieu d'être répétée : le serveur ne rend la version demandée que s'il la connaît, et répond sinon la plus ancienne qu'il prend en charge, \texttt{2024-11-05}, plutôt que d'en accepter une qu'il ne saurait pas parler. La règle est la même partout : toute requête portant un identifiant reçoit une réponse, y compris quand elle est fautive.
+\item
+  \textbf{Aucun état conservé entre deux appels.} Le serveur ne retient ni session, ni historique, ni contexte de conversation, et n'exige aucun identifiant de session. Chaque message porte tout ce qu'il faut pour être traité, et plusieurs messages peuvent d'ailleurs voyager ensemble : un lot JSON-RPC reçoit un tableau de réponses, de sorte que trois outils demandés dans le même tour partent en un seul envoi. Deux conséquences : la mémoire de l'échange est portée par le client, et la même requête rejouée sur la même version de base rend exactement la même réponse, puisque le résultat ne dépend pas de ce qui a été demandé avant.
+\item
+  \textbf{Validation.} Avant toute exécution, l'appel est contrôlé contre le schéma que l'outil déclare : l'outil existe, les arguments requis sont présents, aucun argument étranger n'est passé, les valeurs sont du bon type et d'une longueur bornée. Un filtre mal orthographié est refusé avec la liste des valeurs admises, et non traité comme une recherche sans résultat : une liste vide signifierait « aucune correspondance » et fausserait la conclusion.
+\end{itemize}
+
+\begin{verbatim}
+get_technique(id="T1003.001", matrix="ICS")
+-> argument inconnu : matrix (attendus : id)
+
+search_techniques("phishing", matrix="entreprise")
+-> matrice 'entreprise' inconnue - valeurs acceptees :
+  Enterprise, ICS (ou IT, OT, SCADA)
+
+search_techniques("phishing", platform="windowz")
+-> platform inconnue 'windowz' : attendu une valeur parmi Containers,
+  ESXi, IaaS, Identity Provider, Linux, Network Devices, None,
+  Office Suite, PRE, SaaS, Windows, macOS
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  Quand la correction est évidente, le serveur corrige et le dit plutôt que d'échouer : un \texttt{"limit":\ "abc"} retombe sur la valeur par défaut, avec la note \texttt{limit\ invalide\ :\ valeur\ par\ defaut\ appliquee}.
+\item
+  \textbf{Moteur : proposer, puis vérifier.} Le moteur ne conclut pas, il propose. Il rend des techniques candidates, chacune avec un score et avec les mots qui l'ont fait remonter ; c'est ensuite au modèle de confirmer le candidat retenu par \texttt{get\_technique}, puis de le confronter au référentiel interne. La section~\ref{sec:ch2-2-4} détaille son fonctionnement.
+\item
+  \textbf{Référentiel MITRE.} Le moteur y cherche les techniques candidates, puis y assemble la fiche complète de celle qui est retenue.
+\item
+  \textbf{Référentiel interne.} Il y vérifie ensuite si l'organisation décrit déjà ce comportement sous son propre identifiant.
+\item
+  \textbf{Sérialisation.} Le résultat est mis en forme en JSON compact et la version de la base servie y est jointe : la réponse est datée, donc rejouable. Voici le contenu renvoyé au client pour notre requête, avec les champs réels du serveur (enveloppe JSON-RPC omise, premier candidat seul) :
+\end{itemize}
+
+\begin{verbatim}
+{"db_version": {"Enterprise": "19.2", "ICS": "19.2"},
+ "query": "network scan modbus port 502 enumerate devices",
+ "query_tokens": ["502", "devic", "enumer", "modbus", .....],
+ "filtres": {"matrix": "ICS", "platform": "aucun",
+             "tactic": "aucun"},
+ "seuils": {"fort": 0.6, "faible": 0.3},
+ "result_count": 10,
+ "total_matches": 72,
+ "results": [
+   {"id": "T0846.001", "name": "Port Scan",
+    "full_name": "Remote System Discovery: Port Scan",
+    "matrix": "ICS", "score": 0.364,
+    "is_subtechnique": true, "parent_id": "T0846",
+    "tactics": ["TA0102"],
+    "matched": {.....},
+    "snippet": "....."}, .....],
+ "note": "le candidat de tete est une SOUS-technique ; sa
+          parente T0846 est aussi candidate - retenir T0846
+          si l'evidence ne distingue pas la sous-technique"}
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Journal d'audit.} Vingt-quatre types d'événements y sont tracés, et pas seulement l'appel d'outil. D'abord la base elle-même : le téléchargement de chaque matrice avec sa durée et le numéro de version obtenu, puis son chargement, dont le champ \texttt{source} dit si elle vient du réseau ou du cache, puis le démarrage, qui fixe la version servie pendant toute la session. Le chargement du référentiel interne laisse une ligne de même nature, avec le nombre de fiches retenues, le nombre de fiches écartées et le prochain identifiant libre --- et son absence même est journalisée plutôt que tue, comme lors de nos campagnes, où le fichier interne était volontairement retiré. Les quatre lignes ci-dessous sont tirées telles quelles du journal : les trois premières au démarrage de la campagne du 11 septembre, la quatrième au démarrage suivant, où la même base revient du cache sous un autre \texttt{run\_id}.
+\end{itemize}
+
+\begin{verbatim}
+{"ts": "2026-09-11T11:34:25.....", "run_id": "2d2e924e4a44",
+ "event": "download_complete", "matrix": "Enterprise",
+ "duration_ms": 3745, "release": "19.2"}
+{"ts": "2026-09-11T11:34:26.....", "run_id": "2d2e924e4a44",
+ "event": "internal_db_missing",
+ "path": ".....referentiel_interne.json"}
+{"ts": "2026-09-11T11:34:26.....", "run_id": "2d2e924e4a44",
+ "event": "server_start", "pid": 15444, "version": "2.2.1",
+ "transport": "http", "host": "127.0.0.1", "port": 8733,
+ "db_version": {"Enterprise": "19.2", "ICS": "19.2"},
+ "ready": true}
+{"ts": "2026-09-14T04:35:10.....", "run_id": "7f80330e404b",
+ "event": "db_loaded", "matrix": "Enterprise",
+ "source": "cache", "release": "19.2", "techniques": 697}
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  Ensuite le protocole : \texttt{initialize} consigne la version demandée par le client, celle qui a été négociée et l'identité du client ; \texttt{tools/list} est consigné aussi, parce que c'est par cet appel que le modèle lit les descriptions d'outils sur lesquelles il fonde ses choix ; et un appel adressé à un outil qui n'existe pas produit une ligne dont le statut vaut \texttt{unknown\_tool}, car c'est la signature d'un outil inventé par le modèle et il faut pouvoir la compter.
+\item
+  Enfin l'appel lui-même. Chaque étape franchie ou refusée écrit une ligne horodatée portant l'identifiant d'exécution de la session. La figure~\ref{fig:ch2-audit} montre la ligne produite par notre appel : l'outil invoqué, le statut, la durée, les arguments tronqués et un résumé du résultat, jamais le résultat entier --- ici deux millisecondes de calcul côté serveur, 4 587 octets rendus, dix candidats sur 72 correspondances, \texttt{T0846.001} en tête. L'écriture est confiée à un fil d'exécution séparé, de sorte qu'elle ne retarde jamais une réponse, et si la file d'attente sature, une ligne publie le nombre d'événements perdus plutôt que de les taire.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-5-ligne-audit}
+\caption{Ligne d'audit écrite pour cet appel. En bleu, l'identifiant qui corrèle la session ; en vert, la durée et la version qui datent la réponse ; en ocre, les arguments tronqués ; en rouge, le résumé du résultat.}\label{fig:ch2-audit}
+\end{figure}
+
+Le même échange se lit ainsi à trois instants : la requête émise, la réponse datée, la trace d'audit --- trois états successifs du serveur pour une seule question d'analyste.
+
+\subsection{Le moteur de mapping}\label{sec:ch2-2-4}
+
+Le moteur est la partie du serveur qui transforme un signal en identifiants ATT\&CK. Il travaille en deux temps, visibles en figure~\ref{fig:ch2-moteur} : il propose des techniques candidates avec un score, puis il fournit de quoi les vérifier. Il ne tranche jamais à la place de l'analyste, et le rejet est une sortie prévue.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-6-moteur-mapping}
+\caption{Le moteur de mapping : proposer (chaîne du haut), puis vérifier et confronter (chaîne du bas), avec le rejet comme sortie légitime.}\label{fig:ch2-moteur}
+\end{figure}
+
+\textbf{Ce que le moteur lit dans le référentiel.} MITRE a changé sa façon de décrire la détection entre ses versions 17.1 et 18. Dans l'ancien modèle, chaque technique portait deux champs de texte : une liste de sources de données et un paragraphe de détection. Dans le nouveau, l'information est publiée sous forme d'objets reliés, sur trois niveaux : une stratégie de détection dit quoi surveiller, un ou plusieurs \emph{analytics} la mettent en œuvre, et chaque \emph{analytic} nomme les journaux à consulter. Sur \texttt{T1003.001}, cela donne :
+
+\begin{verbatim}
+DET0363  Detection of Credential Dumping from LSASS Memory
+         via Access and Dump Sequence
+  Analytic 1030  (Windows)
+    journaux    WinEventLog:Sysmon:EventCode=10,
+                WinEventLog:Security:EventCode=4673, ...
+    composants  Process Access, Process Creation,
+                File Creation, ...
+\end{verbatim}
+
+Le serveur lit les deux modèles et annonce lequel il a trouvé, dans le champ \texttt{detection\_model}. Sur la version 19.2, ce champ vaut \texttt{strategies} : les 697 techniques Enterprise et les 97 techniques ICS ont toutes au moins une stratégie de détection, et 652 d'un côté, 85 de l'autre portent des journaux exploitables, ce qui alimente un index de 692 libellés de sources. Si l'on place dans le cache le paquet d'une version 17.1, le champ vaut \texttt{hérité} : aucune stratégie n'y est publiée, mais 639 techniques Enterprise et 71 techniques ICS portent quand même leurs sources de données, et \texttt{T1003.001} restitue les 1 119 caractères de son ancien texte de détection. Une étude menée sur une version ancienne reste donc exploitable, et le serveur ne rend jamais une liste de détections vide en laissant croire que MITRE n'a rien publié.
+
+\textbf{Un identifiant écrit de plusieurs façons.} MITRE ne connaît qu'une seule forme pour une sous-technique, à trois décimales. Les rapports, les tickets et les humains en écrivent d'autres. Le serveur les ramène à la forme officielle avant toute consultation, dans tous les outils qui prennent un identifiant, et aussi pour les identifiants repérés à l'intérieur du texte d'une requête :
+
+\begin{verbatim}
+get_technique("t1003.1")    -> T1003.001   LSASS Memory
+get_technique("T1003.01")   -> T1003.001   LSASS Memory
+get_technique("T1003.001")  -> T1003.001   LSASS Memory
+\end{verbatim}
+
+\textbf{Les identifiants d'anciennes techniques.} Le référentiel bouge : des techniques sont retirées à chaque version. Un rapport de renseignement écrit il y a cinq ans, une règle de détection ou une fiche interne peuvent encore citer un identifiant qui n'existe plus. Deux situations se présentent, et elles appellent des gestes opposés.
+
+La première : la technique a été remplacée. Le serveur suit la relation de remplacement publiée par MITRE et redirige vers la technique vivante. La version 19.2 compte 158 redirections de ce type, dont aucune n'aboutit à une impasse. MITRE enchaîne parfois plusieurs remplacements successifs, et le chemin complet est conservé, car un ancien document peut citer justement l'identifiant intermédiaire :
+
+\begin{verbatim}
+get_technique("T1073")
+-> {"redirect": true, "requested": "T1073",
+   "replaced_by": "T1574.001", "via": ["T1574.002"],
+   "remplacant_vivant": true,
+   "note": "'T1073' est revoquee : consulter T1574.001 via
+            get_technique (chaine de revocation : T1574.002)"}
+\end{verbatim}
+
+La seconde : la technique a été retirée sans remplaçante. Elles sont 24 dans la version 19.2. Le serveur le dit explicitement, au lieu de répondre « non trouvée » comme pour une faute de frappe :
+
+\begin{verbatim}
+get_technique("T1064")
+-> {"deprecated": true, "requested": "T1064", "name": "Scripting",
+   "note": "'T1064' (Scripting) est DEPRECIEE par MITRE sans
+            remplacant : ne plus l'utiliser dans un mapping ;
+            chercher le comportement avec search_techniques"}
+\end{verbatim}
+
+La distinction compte, parce que les deux cas ne se corrigent pas de la même façon : une faute de frappe se réécrit, un identifiant déprécié oblige à remapper le comportement. La recherche signale l'un et l'autre lorsque l'identifiant apparaît dans la requête.
+
+\textbf{La base est lue, jamais écrite.} Aucun des dix-huit outils ne modifie le référentiel MITRE ni le référentiel interne. Le serveur n'écrit que deux choses sur le disque, et aucune n'est un contenu d'analyse : une copie des paquets publiés par MITRE, qui sert de cache, et le journal d'audit. Le cache est écrit par remplacement atomique, si bien qu'une interruption ne laisse jamais un fichier à moitié écrit. Le retéléchargement suit la même règle : les deux matrices sont récupérées et analysées d'abord, et la base en mémoire n'est remplacée qu'en cas de succès complet ; un échec laisse la base précédente en place et le signale dans la réponse. La bascule se fait sous verrou, de sorte qu'aucune requête ne peut voir une base à moitié échangée. Le référentiel interne obéit au même principe : le serveur le relit, mais n'y écrit pas, et la création comme la validation d'une fiche restent des actes humains, faits dans le fichier JSON versionné par l'équipe. Pour le mapping, la conséquence est directe : tout identifiant renvoyé vient de la base chargée, et le modèle n'a pas la possibilité d'en composer un qui n'existe pas.
+
+\textbf{Le score.} La recherche est lexicale : elle compare des mots, pas des sens. Le calcul se fait en quatre étapes. D'abord la requête est découpée en mots et chaque mot est ramené à sa racine : « lsass credential dumping » devient \texttt{lsass}, \texttt{credenti}, \texttt{dump}. La même opération est appliquée au référentiel au chargement, sans quoi \texttt{dumping} dans la requête et \texttt{dump} dans le catalogue ne se rencontreraient jamais. Les mots de moins de trois lettres sont écartés, sauf s'ils contiennent un chiffre : \texttt{c2}, \texttt{2fa} et \texttt{t1003} sont retenus, \texttt{to}, \texttt{of} et \texttt{or} ne le sont pas. La raison est mesurable : ces trois mots figurent respectivement dans 790, 704 et 662 des 794 techniques. Les garder reviendrait à faire peser dans le calcul des mots qui ne distinguent rien, au point qu'une requête de pure grammaire comme « on or of » produirait un candidat. Elle ne produit maintenant aucun résultat, avec la note \texttt{aucun\ terme\ significatif\ dans\ la\ requete}.
+
+Ensuite chaque mot reçoit un poids selon sa rareté dans le référentiel. Mesuré sur la version 19.2 : \texttt{lsass} pèse 5,89 et \texttt{dump} 4,12, tandis que \texttt{credenti} ne pèse que 2,55, \texttt{window} 2,35 et \texttt{file} 2,10. Un mot présent dans des centaines de techniques ne distingue rien.
+
+Chaque technique est alors comparée à la requête sur six emplacements, du plus discriminant au moins discriminant : son nom et les acronymes définis dans sa description comptent pour 1,0 ; le nom de sa technique parente et les entités qui l'emploient --- groupes, logiciels, campagnes --- pour 0,8 ; les noms de ses tactiques pour 0,6 ; sa description pour 0,35.
+
+Enfin chaque mot de la requête ne compte qu'une fois, au meilleur emplacement où il a été trouvé, et le total est rapporté au poids de la requête entière. Le score mesure donc la part de la requête retrouvée, entre 0 et 1. Sur notre exemple, le calcul se pose en entier :
+
+\begin{verbatim}
+poids requete :  lsass 5,89 + credenti 2,55 + dump 4,12  =  12,55
+
+T1003.001  LSASS Memory (parente : OS Credential Dumping)
+    nom       lsass                    1,00 x 5,89  =  5,89
+    parente   credenti, dump           0,80 x 6,67  =  5,34
+                                       ---------------------
+                                  11,22 / 12,55  =  0,894
+
+T1003      OS Credential Dumping
+    nom       credenti, dump           1,00 x 6,67  =  6,67
+                                   6,67 / 12,55  =  0,531
+\end{verbatim}
+
+Le mot \texttt{lsass} est absent du nom \emph{OS Credential Dumping} : c'est exactement ce qui fait passer la sous-technique devant sa parente ici, et le modèle peut le lire dans la réponse plutôt que de le supposer.
+
+\textbf{Deux plafonds corrigent les cas où cette couverture atteindrait 1 sans rien prouver.} Le premier vise la requête d'un seul mot : « windows » se retrouve dans le nom de dizaines de techniques, et le mot unique de la requête y serait couvert en entier. Le score est donc plafonné à 0,59, juste sous le seuil fort, sauf si la requête est un identifiant vérifiable comme \texttt{T1003.001} ou un nom strictement égal à celui d'une technique, comme « masquerading ». Le second vise la requête réduite au nom d'une entité : « mimikatz » désigne un logiciel, pas un comportement, et les techniques qui remontent sont seulement celles que ce logiciel emploie. Elles sont plafonnées à 0,45 et marquées \texttt{matched.pivot}. Dès qu'une preuve lexicale accompagne l'entité, le plafond tombe : « apt29 credential dumping » rend bien ses candidats à 0,9.
+
+\textbf{Un nom trop court pour être un mot.} Écarter les mots de moins de trois lettres a un effet de bord : la technique \texttt{T1053.002} s'appelle « At », deux caractères, et elle devenait introuvable par son propre nom. Plutôt que d'assouplir la règle et de réintroduire les mots vides, un index des noms exacts est construit au chargement, indépendant du découpage en mots. Il couvre le nom court et le nom complet \texttt{Parente:\ Sous-technique}. Résultat mesuré sur les 794 techniques interrogées par leur propre nom : aucune n'est introuvable, et 96,6 \% sortent en première position.
+
+Deux seuils sont rappelés dans chaque réponse : 0,6 pour un candidat fort, 0,3 en dessous duquel le serveur écrit lui-même que l'absence de mapping est une conclusion valide. À score égal, le départage est fixe et déterministe : nom exactement égal à la requête, puis nom le mieux couvert par la requête, puis technique parente avant sous-technique, puis matrice --- Enterprise d'abord ---, puis nom le plus court, puis identifiant. Deux exécutions de la même requête rendent donc la même liste dans le même ordre, condition pour qu'une analyse soit reproductible.
+
+\begin{verbatim}
+search_techniques("valid accounts")
+-> T1078      Valid Accounts   1,0  Enterprise   nom égal, matrice IT
+  T0859      Valid Accounts   1,0  ICS          nom égal, matrice OT
+  T1078.003  Local Accounts   1,0  Enterprise   sous-technique, après
+  T1078.004  Cloud Accounts   1,0  Enterprise   sous-technique, après
+
+  "homonymes": [{"name": "Valid Accounts",
+      "techniques": [{"id": "T1078", "matrix": "Enterprise"},
+                     {"id": "T0859", "matrix": "ICS"}]}]
+\end{verbatim}
+
+Le critère de matrice mérite qu'on s'y arrête, parce qu'il porte un risque propre à ce serveur. Vingt-six noms de techniques existent à l'identique dans Enterprise et dans ICS, et « Valid Accounts » en fait partie. À nom identique, le score l'est aussi, et il faut bien trancher d'une façon ou d'une autre : le classement place donc l'informatique de gestion en premier, faute de savoir dans quel monde travaille l'analyste. Le champ \texttt{homonymes} nomme l'ambiguïté quand elle se produit, et une note demande de préciser la matrice. Cela n'en fait qu'un amortisseur : le serveur ne connaît que le paramètre \texttt{matrix} qu'on lui transmet. Sur douze comportements typés, trois des premiers résultats tombaient dans la mauvaise matrice sans ce paramètre, et aucun avec. Le passer systématiquement est la règle.
+
+\textbf{Les preuves.} Chaque candidat est accompagné des mots qui l'ont fait remonter et de l'emplacement où ils ont été trouvés, dans le champ \texttt{matched}. Le modèle peut ainsi écarter le bruit avant même de consulter la fiche complète. Deux exemples mesurés montrent ce que cela apporte :
+
+\begin{verbatim}
+search_techniques("lateral movement rdp")
+-> T1021.001  Remote Desktop Protocol  0,758
+    matched: {"alias": ["rdp"], "tactic": ["later", "movement"]}
+
+search_techniques("mimikatz")
+-> T1098  Account Manipulation  0,45
+    matched: {"software": ["S0002 Mimikatz"],
+              "pivot": "entite seule : piste, pas un mapping"}
+\end{verbatim}
+
+Dans le premier cas, \texttt{rdp} n'apparaît pas dans le nom de la technique : il vient de l'acronyme défini dans sa description, « Remote Desktop Protocol (RDP) », et les mots \texttt{lateral\ movement} ont été reconnus comme un nom de tactique. Le second cas montre l'inverse, une preuve qui n'en est pas une : aucun mot de la requête n'est dans le nom de la technique, c'est le logiciel \emph{Mimikatz} qui a été reconnu, et les dix-huit techniques qui remontent sont simplement celles que ce logiciel emploie. Le champ \texttt{pivot} le dit en toutes lettres, le plafond de 0,45 empêche de les déclarer fortes, et une note renvoie à \texttt{get\_software}, qui fait foi pour cette liste. Le champ \texttt{matched} dit donc dans les deux cas d'où vient le score, ce qui permet de juger sa solidité.
+
+\textbf{Ce que le moteur ne fait pas.} Il ne comprend pas le sens des mots. Une requête en français ne trouve rien d'utile, et la réponse le dit :
+
+\begin{verbatim}
+search_techniques("imprimante thermique defectueuse")
+-> 0 candidat
+  note: aucun candidat : l'absence de mapping est une conclusion
+        valide
+
+search_techniques("vol d'identifiants dans la memoire")
+-> T1591.004  Identify Roles  0,333
+  note: aucun candidat MITRE fort : confronter le comportement au
+        referentiel interne avec search_internal
+\end{verbatim}
+
+Le second cas est le plus instructif : la requête décrit exactement le comportement recherché, et pourtant le meilleur candidat plafonne à 0,333 --- et ce n'est même pas le bon, puisque c'est le mot \texttt{identifiants} qui a été rapproché de \texttt{Identify}. Aucun des mots français employés n'existe dans le catalogue. Les requêtes doivent donc être formulées dans le vocabulaire anglais d'ATT\&CK, un comportement à la fois. C'est la règle que le modèle lit dans la description de l'outil avant d'appeler, et c'est aussi pourquoi la vérification par \texttt{get\_technique} reste obligatoire : un score élevé prouve que les mots correspondent, pas que le comportement est le bon.
+
+\section{Évaluation de l'approche}\label{sec:ch2-3}
+
+La méthodologie d'évaluation est celle du chapitre I, sans modification : même corpus, même étiquetage des prédictions, mêmes deux bases de calcul, mêmes formules de précision, de rappel et de F1, mêmes attributs de diagnostic et mêmes dénominateurs. Elle n'est pas reprise ici ; seuls les changements le sont. Un seul modèle est évalué, Claude Opus 4.8, retenu au terme de la sélection : la question n'est plus lequel choisir, mais ce que gagne celui qui a été choisi.
+
+Une seconde question s'ajoute, qui n'a de sens qu'avec un serveur. Les métriques du chapitre I demandent \emph{le mapping est-il juste ?} ; les indicateurs ajoutés ici demandent \emph{la réponse vient-elle du référentiel ou de la mémoire du modèle ?} Un F1 qui progresse sans que la seconde soit posée ne prouverait rien : le modèle pourrait avoir mieux répondu sans jamais consulter la base.
+
+\subsection{La ligne à battre}\label{sec:ch2-3-1}
+
+Le tableau~\ref{tab:ch2-ligne-base} rassemble les résultats de Claude Opus 4.8 sans serveur, sur les 42 échantillons et les 126 exécutions de la campagne du chapitre I. C'est le point de départ, et la seule référence contre laquelle la phase 2 se mesure.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4018}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.2991}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.2991}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Base stricte}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Base tolérante}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+F1 technique & 0,563 & 0,571 \\
+F1 tactique & 0,587 & 0,587 \\
+F1 sous-technique & 0,636 & 0,682 \\
+F1 technique --- Enterprise / ICS & 0,714 / 0,262 & --- \\
+Hors matrice · hallucination & 0 · 0,0 \% & 0 · 0,0 \% \\
+Obsolescence · abstention & 1,3 \% · 0,0 \% & 1,3 \% · 0,0 \% \\
+\end{longtable}
+\legendetableau{Claude Opus 4.8 sans serveur : la ligne à battre.}{tab:ch2-ligne-base}
+
+
+Hors qualité du mapping, la même campagne relève une stabilité de 76,2 \%, une latence médiane de 4 282 ms pour un 95e centile de 6 050 ms, 6 572 jetons par exécution et une efficacité de 0,086 --- le F1 technique obtenu par millier de jetons.
+
+\textbf{C'est la colonne tolérante qui fait référence.} Les deux bases portent sur les mêmes réponses et ne diffèrent que sur un point : la base stricte compte comme une erreur un identifiant que MITRE a retiré depuis, la base tolérante le crédite, puisque la table de correspondance publiée par MITRE atteste qu'il désignait bien le comportement attendu. Or résoudre ces identifiants retirés est exactement ce que le serveur mécanise. Comparer la phase 2 à la seule base stricte mélangerait donc deux effets : le rattrapage de version, que le serveur fait à coup sûr, et l'apport propre de la consultation. Le seuil à dépasser est donc \textbf{0,571 en technique}, \textbf{0,587 en tactique} et \textbf{0,682 en sous-technique}.
+
+\textbf{Deux chiffres ne peuvent pas s'améliorer.} Ce modèle ne produit, sans serveur, aucun identifiant inventé ni aucun identifiant pris dans l'autre matrice : ces deux compteurs sont à zéro et ne peuvent donc que se dégrader. Leur dégradation serait un signal fort, car le serveur ne rend que des identifiants lus dans la base chargée --- un identifiant inexistant apparaissant en phase 2 ne pourrait venir que de la mémoire du modèle, contre l'avis de l'outil qu'il vient d'interroger.
+
+\textbf{La marge se lit sur la matrice industrielle.} Ventilé par matrice, le F1 technique passe de \textbf{0,714 sur Enterprise} à \textbf{0,262 sur ICS}. L'écart n'est pas un accident de mesure : les comportements industriels sont moins documentés, moins présents dans les données d'entraînement, et le référentiel ICS a évolué plus récemment. C'est donc là qu'un accès à un référentiel à jour a le plus à apporter, et c'est sur cette ventilation que le gain se lira en premier.
+
+\subsection{Ce que la phase 2 ajoute au protocole}\label{sec:ch2-3-2}
+
+\textbf{Le workflow : un seul changement.} Le harnais est celui du chapitre 1, à l'identique --- mêmes 42 échantillons, trois exécutions, format, statuts, relances et exclusions. Une seule chose change : entre le modèle et sa réponse s'intercale un client MCP connecté au serveur de la section~\ref{sec:ch2-2}. Au démarrage, le workflow sonde le serveur, découvre ses outils et les traduit au format de chaque fournisseur ; la version du référentiel chargée est inscrite dans chaque enregistrement. L'appel devient une boucle, plafonnée à huit tours : à chaque tour, le modèle rend son triplet ou demande des outils, dont les résultats sont réinjectés dans le contexte ; épuiser les tours sans conclure vaut une abstention. Le harnais enregistre en plus les tours, les appels par outil et la version de base ; la latence couvre la boucle entière, appels d'outils compris --- consulter le serveur est un coût de l'approche. La figure~\ref{fig:workflow-mcp} situe cet ajout.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-3-workflow-mcp}
+\caption{Le workflow de la phase 2 : le harnais du chapitre 1, augmenté du client MCP et de sa boucle d'outils (huit tours au plus).}\label{fig:workflow-mcp}
+\end{figure}
+
+Une exécution n'est plus un appel et une réponse, mais une conversation : le modèle reçoit les journaux, demande un ou plusieurs outils, reçoit leurs résultats, et recommence jusqu'à pouvoir conclure. Quatre décisions en découlent.
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{L'appel d'outil est imposé au premier tour}, les tours suivants rendant la main. Sans cette contrainte, le modèle pourrait répondre de mémoire et l'exécution ne mesurerait pas l'ancrage mais son absence. \textbf{Conséquence à déclarer :} le taux d'utilisation du serveur vaut 100 \% par construction et n'apprend donc rien. Ce sont le taux d'appels pertinents et le taux de réponses ancrées qui portent l'information.
+\item
+  \textbf{Le modèle choisit ses outils}. Le serveur en publie dix-huit, et le modèle les découvre lui-même par \emph{tools/list} : décider lequel appeler, et dans quel ordre, fait partie de ce que la campagne mesure. Restreindre le périmètre aux seuls outils utiles au mapping rendrait le taux d'appels pertinents égal à 100 \% par construction, comme le taux d'utilisation. Une seule exclusion, qui n'est pas un choix de périmètre mais un garde-fou : \emph{mitre\_update} remplace la base en mémoire et changerait donc la version ATT\&CK servie au milieu de la campagne. Les dix-sept autres sont en lecture seule.
+\item
+  \textbf{La consigne système gagne un alinéa} : consulter le référentiel plutôt que répondre de mémoire, préciser la matrice, vérifier chaque candidat retenu, ne rien changer au format de sortie. Le reste de la consigne est recopié sans modification, et les deux morceaux sont enregistrés séparément pour que la différence soit vérifiable. Coût méthodologique assumé : la comparaison mesure l'effet conjoint de l'accès au référentiel et de la consigne qui invite à s'en servir ; les séparer demanderait une troisième campagne, consigne retirée.
+\item
+  \textbf{Le budget de tours du harnais}, fixé à huit allers-retours, s'ajoute aux cas déjà écartés du calcul. Une exécution qui n'y converge pas est close et écartée, au même titre qu'une réponse tronquée faute de jetons : ce sont deux limites du banc d'essai, pas deux échecs du modèle. L'effectif écarté est rapporté.
+\end{itemize}
+
+Le chapitre I compte en échantillons et en exécutions. S'y ajoute \textbf{l'appel d'outil} : une exécution en produit plusieurs, et compter en exécutions un comportement qui se répète dans la même conversation le sous-estimerait. Un indicateur portant sur la façon d'appeler se compte donc en appels, un indicateur portant sur la conduite d'une exécution se compte en exécutions.
+
+\begin{verbatim}
+E  exécutions retenues      C  appels d’outils émis
+T  tours de conversation    R  appels de recherche (R <= C)
+\end{verbatim}
+
+\subsection{Les indicateurs ajoutés}\label{sec:ch2-3-3}
+
+Onze indicateurs sont calculés depuis la trace que le harnais écrit pour chaque appel : l'outil invoqué, ses arguments, son issue, et les identifiants que le serveur a rendus. Aucun ne modifie un F1 ni n'entre dans un classement --- ce sont des attributs de diagnostic, qui expliquent \emph{comment} le modèle s'est servi du serveur là où les F1 mesurent ce qu'il en a tiré.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.2889}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.5305}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.1806}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Indicateur}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Formule}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Unité}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Taux d'utilisation & exécutions avec $\geq$ 1 appel / E & exécution \\
+Appels par exécution & C / E & appel \\
+Tours par exécution & T / E & tour \\
+Taux d'appels pertinents & appels vers un outil rendant des identifiants / C & appel \\
+Taux d'hallucination d'outil & appels vers un outil inexistant / C & appel \\
+Appels en erreur & effectif brut --- arguments refusés & appel \\
+Démentis du serveur & effectif brut --- identifiant déclaré introuvable & appel \\
+Conformité de matrice & recherches portant la bonne matrice / R & appel \\
+Exécutions conformes & exéc. sans recherche fautive / exéc. avec $\geq$ 1 recherche & exécution \\
+Averti puis faux & effectif brut --- homonymie signalée, identifiant hors matrice retenu & exécution \\
+Taux de réponses ancrées & exéc. dont l'identifiant retenu a été rendu par un outil / exéc. ayant répondu & exécution \\
+\end{longtable}
+\legendetableau{Les indicateurs ajoutés, leur formule et leur unité de compte.}{tab:ch2-indicateurs}
+
+
+\textbf{Le taux d'appels pertinents} vise les quatre outils dont la sortie porte des identifiants de tactique ou de technique. Les treize autres --- mitigations, groupes, logiciels, campagnes, sources de journaux --- ne sont pas fautifs : ils ne servent simplement pas cette tâche. L'indicateur mesure donc la pertinence de la \emph{sélection} d'outil, ce qui suppose que le modèle ait eu le choix.
+
+\textbf{Le taux de réponses ancrées est le plus important des onze.} Une réponse est dite ancrée lorsque l'identifiant finalement retenu figure parmi ceux que les outils ont effectivement rendus au cours de l'exécution. Dans le cas contraire, le modèle l'a produit de mémoire : pas nécessairement faux, mais non vérifié --- or la vérification est précisément ce que le serveur devait apporter. Croisé avec l'étiquetage du chapitre I, cet indicateur sépare quatre situations que le seul F1 confondrait : ancrée et juste, l'ancrage a fonctionné ; ancrée et fausse, c'est le moteur de recherche qui a proposé le mauvais candidat ; non ancrée et juste, le modèle savait déjà et le serveur n'a rien apporté sur cet échantillon ; non ancrée et fausse, c'est exactement le cas que l'ancrage devait empêcher.
+
+\textbf{La conformité de matrice tranche entre deux causes d'un même symptôme.} Le serveur ignore dans quel monde travaille l'analyste : il ne connaît que le paramètre \emph{matrix} que le modèle lui transmet, et sans ce paramètre une recherche interroge les deux matrices à la fois. Comme vingt-six noms de techniques existent à l'identique dans Enterprise et dans ICS, un identifiant industriel peut alors être rendu pour un comportement bureautique, ou l'inverse. Un identifiant hors matrice subsistant en phase 2 admet donc deux explications opposées : ou bien le modèle n'a pas consulté le serveur, ou bien il l'a consulté sans lui dire dans quelle matrice chercher. La première se corrige par la consigne, la seconde par le harnais ; les confondre conduirait à corriger la mauvaise. Cette conformité est mesurée et non forcée : le harnais pourrait injecter la matrice dans chaque appel, mais tenir compte d'une contrainte énoncée dans sa consigne fait partie de ce que la campagne mesure.
+
+\textbf{Deux indicateurs existants changent de contenu, non de formule.} Les \textbf{jetons} portent sur la somme de tous les tours d'une exécution, chacun rechargeant la consigne, les descriptions d'outils et les résultats déjà reçus. La \textbf{latence} englobe les allers-retours ; la part imputable au serveur est isolée, et se compte en millisecondes quand l'exécution se compte en secondes --- le surcoût de l'ancrage n'est donc pas le temps de réponse du référentiel, c'est le temps que le modèle passe à relire ce qu'il en a reçu.
+
+\subsection{Ce que la phase 2 doit montrer}\label{sec:ch2-3-4}
+
+Les attentes sont posées avant les résultats, pour qu'elles ne puissent pas être ajustées après coup.
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Le taux d'obsolescence doit s'effondrer.} ATT\&CK évolue à chaque version : des techniques sont retirées et remplacées par d'autres, et MITRE publie alors une relation de remplacement qui désigne l'identifiant vivant prenant la suite. La version 19.2 en compte 158. Un modèle dont les données d'entraînement sont antérieures à l'une de ces révisions continue de produire l'ancien identifiant : son raisonnement est juste, son numéro est périmé --- c'est ce que mesurent les 1,3 \% du tableau~\ref{tab:ch2-ligne-base}. Le serveur, lui, suit ces relations et ne rend jamais qu'un identifiant vivant. Un modèle qui consulte avant de répondre ne devrait donc plus en produire du tout. Si le taux ne baisse pas, c'est que la réponse n'est pas passée par le serveur, et le taux de réponses ancrées le confirmera sur l'exécution en cause.
+\item
+  \textbf{Le gain doit se voir sur ICS avant tout.} L'écart de 0,714 à 0,262 entre les deux matrices désigne le terrain où la connaissance propre du modèle est la plus lacunaire. Un gain général et uniforme serait d'ailleurs suspect : il indiquerait un effet de consigne plutôt qu'un effet d'ancrage.
+\item
+  \textbf{Les deux compteurs à zéro doivent le rester} --- aucun identifiant inventé, aucun identifiant hors matrice.
+\item
+  \textbf{Le coût doit être chiffré, pas éludé.} La conversation multiplie les jetons et allonge la latence. L'efficacité --- le F1 technique obtenu par millier de jetons, 0,086 sans serveur --- dira si ce surcoût achète de la qualité ou seulement du temps.
+\end{itemize}
+
+\textbf{Le résultat qui invaliderait la lecture} est un taux de réponses ancrées bas. Si le modèle appelle les outils parce que le harnais l'y oblige, puis répond de mémoire, les F1 mesureront sa connaissance du référentiel et non l'apport du serveur, et l'écart entre les deux phases perdrait son sens. C'est pourquoi cet indicateur est rapporté avant les F1, et non après.
+
+\subsection{Résultats}\label{sec:ch2-3-5}
+
+42 échantillons, 3 exécutions, 126 exécutions par condition. Aucune itération écartée : ni panne d'infrastructure, ni budget de sortie épuisé, ni boucle d'outils non convergente. Le serveur a servi la version 19.2 des deux matrices sur les 126 exécutions, sans dérive.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2235}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1400}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Niveau}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MCP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{N}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{VP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{FP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{H}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{O}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{A}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Tactique & non & 126 & 74 & 52 & 0 & 0 & 0 & 0 \\
+Technique & non & 126 & 71 & 54 & 0 & 1 & 0 & 0 \\
+Sous-technique & non & 66 & 42 & 21 & 0 & 3 & 0 & 0 \\
+Tactique & oui & 126 & 101 & 25 & 0 & 0 & 0 & 0 \\
+Technique & oui & 126 & 89 & 37 & 0 & 0 & 0 & 0 \\
+Sous-technique & oui & 66 & 50 & 16 & 0 & 0 & 0 & 0 \\
+\end{longtable}
+\legendetableau{Étiquetage des prédictions, sans puis avec serveur. N = VP + FP + H + O + A, vérifié sur les six lignes.}{tab:ch2-etiquetage}
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0790}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1072}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1072}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1072}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0993}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0959}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1005}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1005}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MCP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Hall.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Ent.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{ICS}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+non & 0 & 0,0 \% & 0,563 & 0,587 & 0,636 & 0,714 & 0,262 & 1,3 \% & 0,0 \% \\
+oui & 0 & 0,0 \% & 0,706 & 0,802 & 0,758 & 0,798 & 0,524 & 0,0 \% & 0,0 \% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base stricte. Ent. et ICS : F1 technique ventilé par matrice.}{tab:ch2-strict}
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0790}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1072}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1185}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1185}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1185}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1298}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1129}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1140}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MCP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Hall.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Écart obs.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+non & 0 & 0,0 \% & 0,571 & 0,587 & 0,682 & +0,008 & 1,3 \% & 0,0 \% \\
+oui & 0 & 0,0 \% & 0,706 & 0,802 & 0,758 & 0,000 & 0,0 \% & 0,0 \% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base tolérante. Écart obs. = F1 tolérant - F1 strict, au niveau technique.}{tab:ch2-tolerant}
+
+
+La référence à battre était 0,571 en technique, 0,587 en tactique et 0,682 en sous-technique. Les trois sont dépassées : \textbf{+0,135 en technique}, \textbf{+0,215 en tactique}, \textbf{+0,076 en sous-technique}. Le taux d'obsolescence tombe à zéro et l'écart entre les deux bases disparaît : il n'y a plus d'identifiant retiré à créditer. Aucun identifiant fabriqué ni hors matrice n'apparaît, de part et d'autre. Le gain est porté par la matrice industrielle, qui double presque --- 0,262 à 0,524 ---, tandis qu'Enterprise progresse de 0,084 : le gain n'est ni général ni uniforme, ce qui écarte l'hypothèse d'un simple effet de consigne. Deux diagnostics achèvent la lecture : les 9 confusions de la scission v19 disparaissent complètement, et les sous-techniques niées à tort passent de 9 à 6.
+
+\textbf{L'obsolescence ne diminue pas : elle disparaît.} Le taux d'obsolescence ne baisse pas : il disparaît. Les quatre identifiants retirés que Claude Opus 4.8 produisait sans serveur provenaient de deux échantillons seulement, et aucun des deux n'en produit plus. Sur S027 --- effacement des journaux système Linux ---, le modèle répondait T1070.002 aux trois exécutions, un identifiant révoqué au profit de T1685.006 qui porte exactement le même nom ; avec le serveur, les trois exécutions rendent T1685.006. Sur S007 --- message Modbus non autorisé ---, il répondait T0836 deux fois et T0855 une fois, ce dernier révoqué au profit de T1692.001 ; avec le serveur, les trois exécutions rendent T1692.001. Le troisième échantillon du corpus exposé à une révocation, S038, était déjà juste sans serveur et le reste.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1261}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1667}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.3536}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.3536}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Éch.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Matrice}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sans serveur}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Avec serveur}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+S027 & Enterprise & T1070 / T1070.002 (trois exécutions) & T1685 / T1685.006 (trois exécutions) \\
+S007 & ICS & T0836 $\times$2, puis T0855 (une exécution) & T1692 / T1692.001 (trois exécutions) \\
+S038 & Enterprise & T1547 / T1547.001 (déjà juste) & T1547 / T1547.001 (inchangé) \\
+\end{longtable}
+\legendetableau{Les échantillons du corpus exposés à une révocation, avant et après ancrage.}{tab:ch2-revocation}
+
+
+\textbf{Ce que ces deux cas démontrent.} Ces deux corrections ne relèvent pas d'un meilleur raisonnement. Sur S027, le modèle avait déjà identifié la bonne action --- effacer des journaux --- et nommait la bonne technique sous son ancien numéro ; il lui manquait de savoir que ce numéro avait changé. Sur S007, le cas est plus net encore : deux exécutions sur trois donnaient T0836, une technique vivante mais fausse, que la base tolérante ne rattrape pas. L'ancrage corrige donc deux défauts distincts avec le même mécanisme --- un référentiel périmé et une confusion ordinaire --- parce que dans les deux cas le modèle a consulté avant de répondre au lieu de puiser dans sa mémoire.
+
+\textbf{Portée du résultat.} C'est le résultat le plus net de la campagne, et le plus directement attribuable au serveur. Un identifiant retiré est un défaut que le modèle ne peut pas corriger seul : rien dans le journal ne lui signale que le référentiel a bougé depuis son entraînement. Le serveur, lui, suit les relations de remplacement publiées par MITRE et ne rend jamais qu'un identifiant vivant. Le passage de 1,3 \% à 0 \% n'est donc pas une amélioration graduelle mais la suppression d'une classe entière d'erreurs.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1129}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1275}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1332}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1163}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1332}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1174}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1185}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1411}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Util.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{App./ex.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Tours/ex.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Pertin.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Hall. outil}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Ancrées}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Matrice}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Démentis}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+100 \% & 2,9 & 3,4 & 100 \% & 0,0 \% & 100 \% & 100 \% & 0 \\
+\end{longtable}
+\legendetableau{Usage du serveur, campagne avec MCP.}{tab:ch2-usage}
+
+
+\textbf{Le serveur a fait sa part.} Les trois F1 montent, les identifiants périmés disparaissent, rien n'est inventé, rien n'est pris hors de la matrice, et chaque réponse s'appuie sur ce que les outils ont rendu. Reste une question : pourquoi une approche déterministe --- un référentiel figé, interrogé en direct --- ne donne-t-elle pas un score plus élevé ? Le tableau de qualité ne peut pas y répondre : il note la réponse finale, sans dire ce que le modèle avait sous les yeux au moment de la donner.
+
+\textbf{Une analyse a donc été ajoutée au script.} Le serveur ne rend pas une réponse, il rend une liste de candidats, et c'est le modèle qui choisit dedans. Le script fait maintenant deux vérifications par exécution, et à chacun des trois niveaux. Premièrement, il rassemble tous les identifiants que les outils ont rendus pendant l'exécution et regarde si la bonne réponse s'y trouve : si oui, le serveur l'a \emph{fournie}. Deuxièmement, il regarde la réponse finale du modèle : si elle est égale à la bonne réponse, le modèle l'a \emph{retenue}. Le croisement des deux donne quatre situations : fournie et retenue ; fournie mais le modèle en retient une autre ; jamais fournie et le modèle est juste quand même ; jamais fournie et le modèle se trompe. Ces compteurs sont écrits dans le rapport, et le fichier CSV porte, pour chaque exécution et chaque niveau, une colonne qui dit si le serveur avait fourni la bonne réponse.
+
+Le tableau~\ref{tab:ch2-serveur-modele} rapporte ces deux mesures côte à côte. Elles ne se lisent pas comme le tableau de qualité : aucune précision n'est calculée pour le serveur, puisqu'il propose plusieurs candidats et non une réponse unique. La ligne du serveur est le plafond de la condition --- le modèle ne peut pas faire mieux que ce qui lui a été fourni ; la ligne du modèle est son score réel ; l'écart entre les deux est la part des exécutions où la bonne réponse était disponible et n'a pas été retenue.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.3400}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2200}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2200}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2200}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Tactique}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Technique}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sous-technique}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Serveur MCP --- réponse fournie & 96,8 \% & 89,7 \% & 90,9 \% \\
+Modèle Opus --- réponse retenue & 80,2 \% & 70,6 \% & 75,8 \% \\
+Perte de sélection & 16,7 pts & 19,0 pts & 15,2 pts \\
+Jamais fournie, modèle faux & 3,2 \% & 10,3 \% & 9,1 \% \\
+Exécutions comptées & 126 & 126 & 66 \\
+\end{longtable}
+\legendetableau{Ce que le serveur a fourni, ce que le modèle a retenu, aux trois niveaux, en pourcentage des exécutions. Ligne 1 : la bonne réponse figurait parmi les identifiants rendus par les outils. Ligne 2 : la réponse finale était la bonne. Ligne 3 : l'écart entre les deux, en points. Ligne 4 : le serveur n'avait pas fourni la bonne réponse et le modèle s'est trompé.}{tab:ch2-serveur-modele}
+
+\textbf{Ce qui a réussi.} Quatre choses, toutes comptées exécution par exécution. Les identifiants périmés ont disparu, parce que le serveur ne rend que des identifiants vivants. Rien n'a été inventé, et rien n'a été pris dans la mauvaise matrice. Chaque réponse s'appuie sur un identifiant qu'un outil a rendu pendant l'exécution : aucune n'est venue de la mémoire du modèle. Et la recherche a bien fonctionné : au niveau technique, la bonne réponse figurait dans ce que le serveur a rendu pour 89,7~\% des exécutions.
+
+\textbf{Ce qui reste en défaut.} 37 exécutions sur 126 rendent une mauvaise technique. Le tableau~\ref{tab:ch2-serveur-modele} les coupe en deux : dans 24, la bonne réponse était dans la liste et le modèle en a retenu une autre ; dans 13, aucun outil ne l'a jamais rendue. Le dépouillement des traces --- ce que le serveur a rendu, appel par appel, et ce que le modèle en a retenu --- ramène ces 37 exécutions à trois défauts. Un quatrième joue au niveau de la sous-technique. Pour chacun : un exemple, ce que le serveur a répondu, ce que le modèle a retenu, et la cause.
+
+\emph{Défaut 1 --- le journal porte deux comportements ; le modèle en retient un, la clé attendait l'autre (13 exécutions, toutes Enterprise).} L'échantillon S016 le montre en entier. Le journal : \texttt{sudo -n cat /etc/shadow}. Cette commande fait deux choses à la fois : elle élève les privilèges (\texttt{sudo}) et elle lit le fichier des empreintes de mots de passe (\texttt{cat /etc/shadow}). Le modèle a lancé deux recherches, une par comportement. Le serveur a répondu juste aux deux : « sudo abuse privilege escalation elevate » rend \texttt{T1548.003} en tête de liste --- la réponse attendue --- et « read /etc/shadow password file dump » rend \texttt{T1003.008} en tête. Le modèle avait donc les deux bonnes fiches sous les yeux. Il a retenu l'effet, la lecture des empreintes, et sa justification l'assume : le \texttt{sudo} n'est pour lui « que le moyen » d'y parvenir. La clé attendait le moyen. À la troisième exécution, il a même ouvert les deux fiches avant de trancher, dans le même sens. Le serveur n'a donc rien manqué ; il ne peut pas non plus trancher, puisque chacune des deux réponses est exacte pour son comportement. Le choix entre les deux est une convention, et cette convention n'est écrite nulle part, ni dans la consigne ni dans la clé. La preuve que c'est bien une convention : le même défaut joue dans les deux sens à l'intérieur de la campagne. Sur S035, la clé attend l'interpréteur qui exécute la commande (\texttt{T1059}) et le modèle répond ce que la commande fait (\texttt{T1057}, la découverte de processus) ; sur S037, la clé attend cette fois le contenu obscurci que la commande transporte (\texttt{T1027}) et le modèle répond l'interpréteur (\texttt{T1059}). Les six sous-techniques niées de la campagne (S014, S035, S036) sont un dégât dérivé de ce même défaut : la technique retenue étant déjà une autre, la sous-technique attendue tombe avec elle.
+
+\emph{Défaut 2 --- en ICS, la requête ne sépare pas des techniques voisines (11 exécutions).} Les onze autres pertes de sélection sont toutes industrielles, et sept tombent sur le même identifiant. L'échantillon S005 : le journal montre des lectures Modbus répétées (\texttt{READ\_COILS}, \texttt{READ\_DISCRETE\_INPUTS}) vers un automate ; la clé attend \texttt{T0868}, la détection du mode de marche. Ce que le serveur a rendu : \texttt{T0868} figurait dans les listes --- septième identifiant de la première recherche, troisième de la seconde --- mais \texttt{T0801}, la lecture d'état générale, sortait en tête, parce que la requête décrivait l'acte de lire (« read coils modbus process state monitor ») et non ce que cette lecture cherche à savoir. Ce que le modèle a retenu : il a ouvert les fiches de \texttt{T0801} et \texttt{T0877}, une fois celle de \texttt{T0861}, jamais celle de \texttt{T0868} ; et la fiche de \texttt{T0801} cite précisément les codes fonction \emph{Read} de Modbus, ce qui a suffi à le convaincre. La cause : ces techniques de collecte se distinguent par la finalité de la lecture, pas par le protocole ; une requête écrite dans les mots du protocole les rend indiscernables, le score met la plus générale en tête, et le modèle ne vérifie que la tête de liste. S002 (identification de points, \texttt{T0861}) et S004 (collecte automatisée, \texttt{T0802}) tombent de la même façon, toujours sur \texttt{T0801} --- sept exécutions en tout. Les quatre dernières (S006, S009) confondent, côté écriture cette fois, le message non autorisé \texttt{T1692} avec la modification qu'il produit (\texttt{T0836}, \texttt{T0835}).
+
+\emph{Défaut 3 --- la requête omet l'artefact qui distingue, et la bonne fiche ne remonte jamais (13 exécutions).} Ici l'erreur précède le choix : aucun outil n'a rendu la bonne réponse, et aucune exécution n'a été rattrapée par la mémoire du modèle --- la ligne « jamais fournie, modèle juste » est à zéro aux trois niveaux. L'échantillon S028, à ses trois exécutions : le journal porte \texttt{sudo chown root:root /tmp/cible}, la clé attend \texttt{T1222}, la modification des permissions. Ce que le modèle a demandé : une seule recherche par exécution, toujours sur le même thème --- « sudo elevate privileges root » ---, jamais le mot \texttt{chown}, jamais les permissions. Ce que le serveur a rendu : la famille \texttt{T1548}, en toute logique, et jamais \texttt{T1222}, qui ne pouvait pas remonter puisque rien dans la requête ne le désignait. Le modèle a ouvert la fiche de \texttt{T1548.003}, l'a trouvée conforme à \texttt{sudo}, et a conclu, sans reformuler ni relancer. La cause tient en une phrase : l'artefact le plus discriminant du fragment, \texttt{chown}, n'est entré dans aucune requête. On notera que S028 porte la même paire moyen-effet que S016, avec l'attente inverse --- la clé y retient l'effet --- ce qui confirme le constat du défaut 1. La correction, elle, relève de la méthode d'interrogation, pas du moteur : inclure l'artefact discriminant et reformuler une fois avant de conclure, ce que la procédure écrite de la section~\ref{sec:ch2-3-6} imposera.
+
+\emph{Défaut 4 --- la sous-technique en trop (11 exécutions, au niveau sous-technique).} Le modèle ajoute une sous-technique là où la clé n'en attend aucune. Trois exécutions seulement le font sur la bonne technique --- S000, aux trois exécutions --- les huit autres l'ajoutent à une technique déjà fausse, où elle ne change plus rien au compte. Le cas S000 est le plus instructif : le serveur avait rendu la parente \texttt{T0846} et la sous-technique \texttt{T0846.001}, sa note invitait à retenir la parente si l'évidence ne distingue pas la sous-technique (section~\ref{sec:ch2-2-3}), le modèle a ouvert les deux fiches, jugé que le balayage de ports distinguait bien \texttt{T0846.001}, et l'a affirmée. Tout est vérifié, rien n'est inventé ; le désaccord porte sur le niveau attendu, pas sur l'identifiant.
+
+\textbf{Le compte, posé simplement.} Au niveau technique : 70,6~\% d'exécutions justes ; 19,0 points perdus au choix, défauts 1 et 2 ; 10,3 points perdus à la recherche, défaut 3. La part du choix est la plus grande. C'est elle qu'une méthode écrite peut viser --- ouvrir les fiches sœurs avant de trancher, reformuler quand la liste est pauvre, suivre une convention déclarée quand un fragment porte deux comportements --- et c'est l'objet de la section~\ref{sec:ch2-3-6}.
+
+Le modèle a appelé un outil à chaque exécution, 2,9 fois en moyenne sur 3,4 tours ; le plafond de huit tours n'a jamais été approché, le maximum observé étant six. Il n'a jamais inventé d'outil ni donné d'argument refusé, et les 163 recherches portaient toutes la bonne matrice --- 121 exécutions sur 126 ont émis au moins une recherche, les cinq autres sont allées directement à la lecture d'une fiche. Le serveur n'a signalé aucune homonymie, précisément parce que la matrice était jointe à chaque recherche ; aucun identifiant soumis n'a été déclaré introuvable. Huit appels ont déclenché le garde-fou des identifiants révoqués, tous sur T0855 : la redirection vers T1692.001 corrige entièrement S007, et remplace sur S008 et S009 un identifiant mort par un identifiant vivant --- sans être pour autant le bon. Trois outils sur les dix-sept exposés ont été employés : \emph{get\_technique} 184 fois, \emph{search\_techniques} 163 fois, \emph{get\_tactic} 22 fois. Le serveur lui-même ne pèse presque rien dans le temps de réponse : environ 274 millisecondes par exécution, sur une médiane de 14,1 secondes --- le coût vient des tours de conversation, pas de l'outil.
+
+Le taux d'ancrage de 100 \% valide la lecture des tableaux précédents : aucune réponse n'a été produite de mémoire, l'écart mesure donc bien l'apport du serveur.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.0730}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1300}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1300}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1360}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1530}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1300}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1240}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1240}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MCP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Stabilité}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p50}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p95}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Jetons/exéc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sur-spéc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Efficacité}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Argent}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+non & 76,2 \% & 4 282 ms & 6 050 ms & 6 572 & 10,0 \% & 0,086 & 4,63 \$ \\
+oui & 71,4 \% & 14 146 ms & 22 554 ms & 47 441 & 18,3 \% & 0,015 & 31,32 \$ \\
+\end{longtable}
+\legendetableau{Fiabilité, vitesse et coût.}{tab:ch2-fiabilite}
+
+
+\textbf{Ce que disent les chiffres du coût.} Tout augmente, sauf la stabilité. Le modèle consomme \textbf{7,2 fois plus de jetons} (6 572 contre 47 441), répond en \textbf{3,3 fois plus de temps} (4,3 contre 14,1 secondes), et la campagne coûte \textbf{6,8 fois plus cher} (4,63 contre 31,32 \$). Le pire cas ordinaire suit la même pente : le 95\up{e} centile passe de 6,1 à 22,6 secondes. Rapporté au gain, l'ancrage achète 0,135 point de F1 technique au prix de 40 869 jetons par exécution : l'efficacité tombe de 0,086 à 0,015. La stabilité recule de 4,8 points, la boucle ouvrant plusieurs chemins vers une même conclusion, et la sur-spécification double presque (10,0~\% à 18,3~\%) --- c'est le défaut 4 décrit plus haut. D'où vient cette consommation, la figure~\ref{fig:ch2-echanges} le montre échange par échange.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-9-echanges-execution}
+\caption{Les quatorze échanges de la première exécution de S000, numérotés dans l'ordre. Quatre appels au modèle (échanges 1, 5, 9 et 13), trois allers-retours vers le serveur. L'entrée de chaque appel au modèle contient l'intégralité des échanges précédents.}\label{fig:ch2-echanges}
+\end{figure}
+
+\textbf{D'où viennent ces jetons : une exécution décortiquée.} La figure~\ref{fig:ch2-echanges} numérote les quatorze échanges de la première exécution de S000 --- celle dont la section~\ref{sec:ch2-2-3} suivait déjà la première recherche. Une exécution avec serveur n'est pas un appel : c'est une suite d'appels au modèle, et chaque appel lui renvoie tout ce qui précède.
+
+Échange 1 : n8n envoie au modèle la consigne, les dix-huit descriptions d'outils et le journal à analyser. Cette première entrée pèse 6 842 jetons : 2 309 pour la consigne et le journal --- c'est, à l'identique, l'appel unique de la campagne sans serveur --- et 4 533 pour le bloc d'outils, un poids fixe d'une exécution à l'autre. Échange 2 : le modèle ne répond pas encore ; il demande \texttt{search\_techniques}. Échanges 3 et 4 : n8n transmet la demande au serveur, qui répond en 2 millisecondes : 4 587 octets, dix candidats, \texttt{T0846.001} en tête. Échange 5 : n8n rappelle le modèle en lui renvoyant l'échange 1 en entier, sa propre demande, et le résultat de l'outil --- le modèle relit donc ce qu'il a déjà lu. Échanges 6 à 8 : il demande la fiche de \texttt{T0846}, que le serveur rend (2 987 octets). Échanges 9 à 12 : même chose pour \texttt{T0846.001} (3 139 octets). Échange 13 : le quatrième appel au modèle porte à lui seul 11 526 jetons d'entrée, la conversation entière. Échange 14 : le modèle rend son triplet, \texttt{TA0102} / \texttt{T0846} / \texttt{T0846.001}, en 218 jetons.
+
+Le compte est alors simple. Les entrées des quatre appels s'additionnent : 37 035 jetons facturés en entrée, pour 540 jetons de sortie. Les 6 842 jetons du premier envoi ont été refacturés quatre fois. Le serveur, lui, a calculé 2 millisecondes en tout --- 83 millisecondes aller-retour compris --- et rendu 10 713 octets. Les 13,2 secondes de latence et l'essentiel de la facture viennent donc du modèle, qui relit une conversation de plus en plus longue, pas du serveur, qui répond. Ce mécanisme, répété sur 126 exécutions de 3,4 tours en moyenne, produit les 47 441 jetons du tableau~\ref{tab:ch2-fiabilite}. C'est aussi lui que le cache de prompt de la section~\ref{sec:ch2-3-6} viendra facturer autrement : les jetons relus ne disparaîtront pas, ils changeront de prix.
+
+\textbf{Ce que la campagne démontre.} L'apport du serveur est réel, et il est mesuré : les trois F1 dépassent la référence, et le gain est le plus fort exactement là où le modèle était le plus faible --- la matrice industrielle passe de 0,262 à 0,524. Les identifiants périmés disparaissent entièrement, parce que le serveur ne rend que des identifiants vivants. Aucun identifiant inventé ni hors matrice n'apparaît. Et chaque réponse s'appuie sur ce que le serveur a rendu : rien n'a été répondu de mémoire. Ce ne sont pas des promesses d'architecture, ce sont des compteurs, vérifiés exécution par exécution. Reste à savoir d'où viennent les erreurs subsistantes : c'est l'objet du tableau~\ref{tab:ch2-serveur-modele}.
+
+\subsection{Optimisation du mapping}\label{sec:ch2-3-6}
+
+Le serveur a mis le référentiel à portée du modèle ; il ne lui a jamais dit comment s'en servir. Le tableau~\ref{tab:ch2-serveur-modele} l'établit sans ambiguïté : au niveau technique, la bonne réponse figurait dans ce que les outils avaient rendu pour 89,7 \% des exécutions, et n'a été retenue que dans 70,6 \%. Deux ajouts sont évalués ici, indépendants du serveur et indépendants l'un de l'autre : une procédure écrite, qui vise la qualité du mapping, et une facturation différente du contexte, qui vise son coût.
+
+\textbf{Le fichier de compétences.} Un \emph{skill} est un fichier Markdown déposé à un emplacement connu du workflow --- ici \texttt{skills/mitre-attack-mapping/SKILL.md} --- dont l'en-tête déclare un nom et une description, et dont le corps décrit une marche à suivre. Il n'ajoute aucune connaissance : on n'y trouve pas une seule correspondance entre un comportement et un identifiant ATT\&CK, et rien qui remplacerait ce que le serveur rend. Il fixe une méthode, et rien d'autre. Sa règle d'ouverture énonce le principe de la phase 2 sous forme d'obligation --- la base fait foi, pas la mémoire --- et n'admet que trois issues : un mapping vérifié contre la base, un mapping multiple documenté lorsque l'observation porte réellement plusieurs techniques, ou une abstention motivée. Un identifiant qui n'a pas été vu dans la sortie d'un outil pendant la session n'est jamais une issue valide.
+
+Neuf étapes en découlent. Le modèle commence par inventorier les outils dont il dispose, relever la version de la base et repérer les conventions que l'hôte impose ; à défaut d'outil ATT\&CK, un mode dégradé lui interdit de simuler une vérification. Il isole ensuite \emph{un} comportement atomique et en extrait le fragment exact --- ligne de commande, fonction protocolaire, chemin --- contre lequel tout le reste se jugera. Il fixe la matrice \emph{avant} de chercher, puisque la base ne connaît du contexte que ce qu'on lui passe. Il formule alors sa requête en mots-clés anglais du vocabulaire ATT\&CK, trois au minimum, en y incluant l'artefact le plus discriminant. Il consulte enfin la fiche complète des deux ou trois premiers candidats, jamais du seul premier, et c'est là que se trouve la règle la plus caractéristique du fichier : \textbf{écarter le candidat classé premier exige de nommer, dans la justification, l'élément du fragment qui l'exclut}. Sans un tel élément, le premier candidat vérifié est retenu. Suivent un ordre de départage explicite --- convention de l'hôte, spécificité de l'artefact, fonction exacte avant famille, co-occurrence déclarée, technique parente par défaut ---, six contrôles obligatoires avant de répondre (existence, matrice, tactique rattachée, sous-technique rattachée, absence de révocation, et l'identifiant vu dans une sortie d'outil), et un protocole d'abstention qui interdit de combler un vide par l'identifiant « le plus proche ».
+
+Le fichier déclare lui-même ce qu'il ne garantit pas, et la distinction porte sur la suite de cette section : il rend la \emph{procédure} déterministe et auditable, non le \emph{résultat} infaillible. Sur une observation qui porte à la fois un moyen et son effet, la bonne réponse dépend d'une convention d'étiquetage qui appartient à l'hôte ; le skill détecte ce cas et le déclare, il ne le devine pas.
+
+\textbf{Le cache de prompt.} Le second ajout ne touche pas au raisonnement. Une exécution de la phase 2 n'est pas un appel mais une conversation de 3,4 tours en moyenne, et chaque tour renvoie au modèle l'intégralité de ce qui précède : la consigne, les dix-sept descriptions d'outils, le journal soumis et tous les résultats déjà reçus. Mesuré sur nos campagnes, \textbf{81 \% des jetons d'entrée sont ainsi du renvoi à l'identique}. Le cache de prompt les fait reconnaître par le fournisseur comme un préfixe déjà vu et les facture 0,50 \$ le million au lieu de 5 \$, l'inscription initiale coûtant en contrepartie 1,25 fois le tarif d'entrée. Deux points de coupe sont posés : un explicite en fin de bloc système --- l'ordre de mise en cache étant outils, puis système, puis messages, il couvre aussi les descriptions d'outils --- et le cache automatique de tête pour la conversation qui grandit. Le point décisif pour la lecture des résultats est que le modèle reçoit \emph{exactement} le même contexte : le cache n'a aucun effet sur la génération, il en change seulement le prix.
+
+\textbf{Ce que la phase 3 doit montrer.} Les deux ajouts ne se jugent donc pas au même endroit. Du skill, on attend qu'il déplace les erreurs restantes plutôt qu'il ne les masque : relever le plafond du serveur, c'est-à-dire diminuer la part des exécutions où la bonne réponse n'a jamais été rendue, sans dégrader ni l'ancrage ni la stabilité. Du cache, on attend une baisse de la facture à qualité constante --- et l'égalité des F1 est ici une condition de validité, non un résultat décevant : si les scores bougeaient nettement, il faudrait suspecter que les deux campagnes n'ont pas reçu le même contexte.
+
+\textbf{Comment nous procédons.} Deux campagnes s'ajoutent aux deux précédentes, sur le même corpus de 42 échantillons, trois exécutions chacun, le même harnais, le même serveur --- version 2.2.1, base ATT\&CK 19.2 --- et le même modèle. La première ajoute le skill : son corps est injecté intégralement dans le prompt système, et l'alinéa ajouté en phase 2 est \emph{vidé}, de sorte que le gain soit attribuable à la procédure et non à la superposition de deux consignes. Chaque enregistrement porte le nom du fichier, son mode de chargement et son empreinte, si bien qu'une campagne se rattache à une version exacte de la méthode. La seconde campagne est la première rejouée avec un seul drapeau changé, celui du cache : c'est une réplication, ce qui en fait aussi une mesure de la variation ordinaire du modèle d'une campagne à l'autre. Les indicateurs sont ceux de la section~\ref{sec:ch2-3-3}, sans ajout, augmentés de deux compteurs : les jetons lus dans le cache et les jetons qui y sont inscrits.
+
+\textbf{Une réserve de mesure à déclarer.} L'indicateur d'efficacité --- F1 technique par millier de jetons --- cesse d'être comparable dès qu'un cache est actif. L'interface ne compte en jetons d'entrée que ce qui n'a pas été servi par le cache : lue sur cette seule colonne, la campagne avec cache afficherait 835 jetons par exécution au lieu de 69 471, et son efficacité serait multipliée par cinquante-huit sans que rien n'ait changé. Le tableau~\ref{tab:ch2-cout-phase3} rapporte donc la consommation réelle --- entrée, sortie, cache lu et cache inscrit additionnés --- ainsi que le montant facturé, et l'efficacité en est retirée.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-2-8-workflow-skill-cache}
+\caption{Le workflow de la phase 3 : celui de la figure~\ref{fig:workflow-mcp}, repris tel quel, avec pour seul ajout les deux points de coupe du cache. Le skill ne change pas la forme du workflow : il entre par le prompt système, au moment de préparer l'appel.}\label{fig:workflow-skill-cache}
+\end{figure}
+
+La figure~\ref{fig:workflow-skill-cache} situe le cache dans le harnais, repris tel quel de la phase 2 ; le skill, lui, n'y ajoute aucun nœud visible, puisque son corps entre par le prompt système au moment de préparer l'appel. L'annexe~\ref{ann:workflow-skill-cache} donne le détail nœud par nœud, ainsi que le texte intégral du fichier de compétences.
+
+\textbf{La qualité du mapping.} Le tableau~\ref{tab:ch2-qualite-phase3} reprend les colonnes du tableau~\ref{tab:ch2-strict} et y ajoute les deux campagnes de la phase 3, en base stricte. Les deux premières lignes sont celles déjà commentées, rappelées pour la lecture.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1800}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0560}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0790}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0930}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0930}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0890}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0930}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0930}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0860}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0860}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dispositif}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Hall.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Ent.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{ICS}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Sans serveur & 0 & 0,0 \% & 0,563 & 0,587 & 0,636 & 0,714 & 0,262 & 1,3 \% & 0,0 \% \\
+MCP & 0 & 0,0 \% & 0,706 & 0,802 & 0,758 & 0,798 & 0,524 & 0,0 \% & 0,0 \% \\
+MCP + skill & 0 & 0,0 \% & 0,738 & 0,873 & 0,758 & 0,857 & 0,500 & 0,0 \% & 0,0 \% \\
+MCP + skill + cache & 0 & 0,0 \% & 0,730 & 0,865 & 0,758 & 0,845 & 0,500 & 0,0 \% & 0,0 \% \\
+\end{longtable}
+\legendetableau{Qualité du mapping aux quatre dispositifs, base stricte. Ent. et ICS : F1 technique ventilé par matrice. 126 exécutions par ligne, 66 au niveau sous-technique.}{tab:ch2-qualite-phase3}
+
+
+\textbf{La consommation et le temps de traitement.} Le tableau~\ref{tab:ch2-cout-phase3} rapporte les mêmes campagnes du point de vue de l'exploitation. La colonne \emph{Jetons} donne la consommation réelle par exécution, cache compris ; la colonne \emph{dont cache} isole la part servie par le préfixe déjà vu.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1800}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1050}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1050}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1050}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1250}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1150}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1150}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1300}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dispositif}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Stab.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p50}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p95}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Jetons}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{dont cache}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sur-spéc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Argent}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Sans serveur & 76,2 \% & 4 282 ms & 6 050 ms & 6 572 & --- & 10,0 \% & 4,63 \$ \\
+MCP & 71,4 \% & 14 146 ms & 22 554 ms & 47 441 & --- & 18,3 \% & 31,32 \$ \\
+MCP + skill & 85,7 \% & 19 487 ms & 30 110 ms & 69 234 & --- & 16,7 \% & 45,71 \$ \\
+MCP + skill + cache & 83,3 \% & 20 652 ms & 30 937 ms & 69 471 & 55 777 & 15,0 \% & 16,23 \$ \\
+\end{longtable}
+\legendetableau{Consommation et temps de traitement aux quatre dispositifs. Jetons : consommation réelle moyenne par exécution --- entrée, sortie, cache lu et cache inscrit additionnés. Argent : coût des 126 exécutions, chaque composante facturée à son tarif du 16 septembre 2026.}{tab:ch2-cout-phase3}
+
+
+\textbf{Le constat.} Les deux tableaux se lisent ensemble, et ils racontent deux histoires différentes.
+
+Le skill améliore la qualité, modestement au niveau technique et nettement ailleurs. Le F1 technique passe de 0,706 à 0,738, soit quatre exécutions justes de plus sur 126 ; le F1 tactique gagne au contraire 0,071, et Enterprise 0,059. La stabilité est le gain le plus net : elle remonte de 71,4 \% à 85,7 \%, c'est-à-dire qu'elle dépasse enfin celle du modèle sans serveur (76,2 \%). La procédure écrite corrige donc précisément ce que la boucle d'outils avait dégradé en phase 2, où plusieurs chemins menaient à des conclusions différentes. La sur-spécification recule elle aussi, de 18,3 \% à 16,7 \%, puis à 15,0 \%, sans revenir au niveau du modèle seul. Les quatre garanties de la phase 2 tiennent : aucune hallucination, aucun identifiant hors matrice, aucun identifiant périmé, et 100 \% de réponses ancrées dans une sortie d'outil.
+
+Le croisement serveur contre modèle explique où le skill agit. Le plafond du serveur au niveau technique passe de 89,7 \% à 94,4 \% des exécutions, et la part des exécutions où la bonne réponse n'a jamais été rendue tombe de 10,3 \% à 5,6 \% : \textbf{le skill divise par deux les échecs de recherche}. La perte de sélection, elle, ne diminue pas --- elle progresse même de 19,0 à 21,4 points. L'explication est mécanique : mieux conduite, la recherche ramène davantage de matière, 28,7 candidats distincts par exécution contre 22,1, et une liste plus riche est une liste plus difficile à trancher. Le modèle mobilise aussi plus d'outils, six au lieu de trois --- l'inventaire de l'étape 0 l'y conduit --- pour 3,7 appels par exécution contre 2,9. La procédure a donc réglé la moitié gauche du problème, celle de la recherche, et laissé intacte la moitié droite, celle du choix final.
+
+Une seule régression apparaît, et elle mérite d'être dite : \textbf{le F1 technique sur la matrice industrielle passe de 0,524 à 0,500}. L'écart vaut une exécution sur 42 ; il n'est pas significatif, mais il suffit à établir que le doublement du score ICS constaté en phase 2 vient de l'ancrage et non de la procédure. Le skill n'a rien apporté à la matrice industrielle.
+
+Le cache, lui, tient exactement sa promesse, et la tient sans rien coûter à la qualité. Les jetons réellement consommés ne bougent pas --- 69 471 contre 69 234, une variation de trois pour mille : le cache ne raccourcit rien, il change le tarif de ce qui est relu. La facture, elle, passe de 45,71 \$ à 16,23 \$, soit \textbf{une baisse de 64 \%}, et de 31,32 \$ pour le serveur seul, soit une baisse de 48 \% pour un dispositif plus précis. Rapporté au résultat utile, le coût d'un mapping technique juste tombe de 0,491 \$ à 0,176 \$. Et les scores confirment la neutralité attendue : 92 techniques justes contre 93, 109 tactiques contre 110, la sous-technique inchangée à 0,758 --- une exécution d'écart aux deux premiers niveaux, c'est-à-dire la variation ordinaire du modèle d'une campagne à l'autre. Le contrôle de validité est donc satisfait.
+
+Une nuance doit accompagner ce chiffre. Le dispositif complet reste 3,5 fois plus cher que la réponse de mémoire (16,23 \$ contre 4,63 \$) et 4,8 fois plus lent (20,7 contre 4,3 secondes en médiane). Le cache abaisse le prix de l'ancrage ; il ne le ramène pas à celui d'une réponse non vérifiée, et ce n'est pas son objet. Le poste dominant de ce qui reste n'est d'ailleurs plus la lecture de cache, qui ne pèse que 22 \% de la facture, mais son inscription, qui en représente 62 \% : la conversation grandissant à chaque tour, chaque tour inscrit un nouveau préfixe. C'est là que se trouve la marge suivante.
+
+\textbf{Les erreurs qui persistent.} Un F1 technique de 0,730 laisse 34 exécutions fausses sur 126. Le dépouillement des traces les range dans quatre familles, dont trois se concentrent sur la sélection finale. Chacune est illustrée par un cas du corpus.
+
+\emph{Le rabattement sur la technique voisine la plus générale.} Prolongement direct du défaut 2 de la phase 2, c'est la famille la plus nombreuse et elle est entièrement industrielle : dix exécutions concluent à \texttt{T0801 --- Monitor Process State} là où quatre échantillons différents attendaient \texttt{T0861}, \texttt{T0868}, \texttt{T0802} ou \texttt{T0814}. Sur S002, le journal Zeek montre douze requêtes Modbus \texttt{READ\_HOLDING\_REGISTERS} consécutives vers un automate, et la vérité de terrain attend \texttt{T0861 --- Point \& Tag Identification}. Le modèle a pourtant fait tout ce que la procédure demande : il a cherché avec la matrice ICS, consulté les fiches de trois candidats --- \texttt{T0801}, \texttt{T0877} et \texttt{T0861} ---, énuméré la tactique \texttt{TA0100} pour voir les techniques sœurs, et nommé l'élément qui exclut chacun des écartés, comme l'exige la règle d'écartement de l'étape 4. Sa justification écarte \texttt{T0861} au motif que la technique vise l'identification des tags et non la lecture de leurs valeurs. Le raisonnement est défendable ; il est simplement en désaccord avec la clé. L'étape 5.3 du skill vise précisément ce piège --- « fonction exacte avant famille » --- et ne suffit pas à le lever : la distinction entre lire un état et cartographier des points ne se décide pas sur le code fonction protocolaire, seul discriminant que le journal offre.
+
+\emph{La co-occurrence d'un moyen et de son effet.} Le défaut 1 de la phase 2 est intact : trois exécutions sur S016 concluent à \texttt{T1003 --- OS Credential Dumping} là où la clé attend \texttt{T1548 --- Abuse Elevation Control Mechanism}. Le fragment est un unique \texttt{EXECVE} : \texttt{sudo -n cat /etc/shadow}. Il porte réellement les deux techniques --- l'élévation de privilège est le moyen, la lecture des empreintes est l'effet --- et le serveur a rendu les deux dès les deux premières recherches. Le modèle a retenu l'effet, en écrivant dans sa justification que le \texttt{sudo} n'était ici « que le moyen d'obtenir l'accès root pour cette lecture ». Le cas est exactement celui que l'étape 5.4 du skill décrit et que sa dernière section déclare non garanti : en l'absence de convention d'étiquetage écrite, aucune procédure ne peut deviner laquelle des deux techniques l'évaluateur a retenue. L'échantillon S028 en donne le miroir : sur \texttt{sudo chown root:root /tmp/cible}, la clé attend cette fois l'effet, \texttt{T1222 --- File and Directory Permissions Modification}, et le modèle retient le moyen, \texttt{T1548.003}. Les deux réponses suivent la même logique et sont fausses toutes les deux, parce que la convention change d'un échantillon à l'autre. Une part de l'erreur résiduelle est donc une propriété de la clé, non du dispositif --- constat qui appelle, pour une campagne ultérieure, d'écrire la règle de co-occurrence dans les conventions de l'hôte, ce que l'étape 0 du skill prévoit explicitement.
+
+\emph{L'échec de recherche.} Le défaut 3 de la phase 2 recule de treize à sept exécutions sans s'éteindre : l'erreur est en amont du choix, la bonne réponse n'a jamais été rendue par un outil. Le cas le plus net est S028, où le fragment porte à la fois \texttt{sudo} et \texttt{chown root:root}. Les deux requêtes émises --- « sudo privilege escalation elevated execution », puis « unix shell command interpreter execution » --- décrivent le contexte d'exécution et jamais l'action sur les permissions. \texttt{chown}, l'artefact le plus discriminant du fragment, n'apparaît dans aucune requête ; \texttt{T1222} ne pouvait donc pas remonter. L'étape 3 du skill impose pourtant d'inclure l'artefact le plus discriminant : la consigne existe, elle n'a pas été appliquée. C'est une limite de l'exécution de la procédure, pas de sa rédaction.
+
+\emph{La sur-spécification.} Neuf exécutions ajoutent une sous-technique là où la clé n'en attend aucune. Sur S000, le modèle rend la bonne technique, \texttt{T0846 --- Remote System Discovery}, puis y ajoute \texttt{T0846.001 --- Port Scan} au motif, exact, que le journal montre un balayage du port 502 sur une plage d'adresses. La sous-technique existe, elle est rattachée à la bonne parente, et le serveur l'a rendue : les six contrôles de l'étape 6 passent tous. La note du serveur --- visible dans l'exemple de la section~\ref{sec:ch2-2-3}, qui suit précisément cette requête --- l'invitait à ne retenir la sous-technique que si l'évidence la distingue ; le modèle a jugé que c'était le cas, et son argument se défend. Le désaccord porte sur le niveau attendu, non sur l'identifiant. Le phénomène s'est d'ailleurs aggravé avec l'ancrage --- 10,0 \% sans serveur, 18,3 \% avec --- pour une raison compréhensible : mieux informé des sous-techniques existantes, le modèle en affirme davantage. Le skill le contient sans le supprimer, par sa règle du niveau parent par défaut : 16,7 \%, puis 15,0 \%.
+
+Ces quatre familles ont un point commun : aucune n'est une défaillance de l'ancrage. Dans les quatre cas, l'identifiant rendu existe, appartient à la bonne matrice, n'est pas révoqué et provient d'une sortie d'outil. Ce qui reste à traiter n'est plus la fiabilité du référentiel, c'est la décision finale --- et, pour une part qu'il faut assumer, la précision de la clé d'évaluation elle-même.
+
+\section{Les avantages de l'approche}\label{sec:ch2-4}
+
+Quatre bénéfices découlent de cette architecture. Les trois premiers portent sur la qualité du mapping, le quatrième sur le déploiement.
+
+\textbf{Le versionnage du référentiel.} C'est l'avantage principal. ATT\&CK n'est pas figé : des techniques apparaissent, d'autres fusionnent ou sont retirées à chaque révision. Un modèle qui répond de mémoire restitue un état du référentiel qu'il ne sait pas dater, et l'analyste n'a aucun moyen de le vérifier. Notre serveur sert au contraire une version nommée, choisie et épinglée, et la joint à chaque réponse : une analyse est datée, et rejouable à l'identique des mois plus tard. Les identifiants retirés ne sont pas perdus pour autant, puisqu'un identifiant révoqué est redirigé vers son remplaçant vivant --- \texttt{T1086}, par exemple, conduit à \texttt{T1059.001}. Un rapport ancien reste donc exploitable sans travail de conversion. Sur notre campagne d'évaluation, le taux d'identifiants obsolètes est passé de \textbf{1,3 \%} à \textbf{0 \%}.
+
+\textbf{La personnalisation interne.} ATT\&CK décrit des comportements observés à l'échelle mondiale ; une organisation en observe qui lui sont propres, ou que le référentiel public ne couvre qu'avec une granularité insuffisante. Le référentiel interne permet de les décrire sous des identifiants maison, alimentés par les rapports de red team et les productions de renseignement internes, chaque fiche demeurant rattachée à une technique ATT\&CK (section~\ref{sec:ch2-2-2}). Les deux niveaux cohabitent sans se contredire : la précision locale est ajoutée là où le référentiel public s'arrête, et le vocabulaire commun reste intact, de sorte qu'un interlocuteur externe comprend toujours de quoi il est question.
+
+\textbf{La précision maîtrisée.} Le serveur ne rend pas le modèle plus savant : il rend ses réponses vérifiables. Tout identifiant renvoyé provient de la base chargée, ce qui retire au modèle la possibilité d'en composer un qui n'existe pas. Chaque candidat arrive accompagné des indices qui l'ont fait remonter, et l'absence de correspondance constitue une réponse explicite plutôt qu'un identifiant forcé. L'effet est mesurable : sur la même campagne, le score F1 du mapping est passé de \textbf{0,571} à \textbf{0,706}.
+
+\textbf{La polyvalence.} Le serveur ignore qui l'appelle : il parle MCP, et tout client qui parle MCP peut s'y brancher. Changer d'usage revient donc à changer de client, sans rien modifier au serveur. Le premier cas d'utilisation en donne la mesure : une chaîne conversationnelle bâtie dans n8n (figure~\ref{fig:ch2-n8n}). La question de l'analyste entre par un nœud de discussion et parvient à un agent porté par Claude Sonnet, auquel sont rattachés une mémoire de session et le serveur MCP MITRE déclaré comme outil. S'y ajoute une intelligence procédurale : un fichier de compétences décrit à l'agent la marche à suivre, c'est-à-dire la méthode de mapping elle-même. Chaque appel est ensuite assemblé puis transmis par HTTP au service de journalisation, avant que la réponse ne revienne dans le fil, sourcée et datée. L'ensemble se comporte comme un assistant d'analyste : il dispose du référentiel public et des fiches internes, et répond à toute question posée dans la conversation.
+
+\begin{figure}[htbp]
+\centering
+\figurefichier{figures/figure-2-7_chaine-conversationnelle-n8n}
+\caption{Cas d'utilisation : chaîne conversationnelle n8n. L'agent reçoit la question, dispose du serveur MCP MITRE comme outil, et chaque appel est journalisé avant le retour de la réponse.}\label{fig:ch2-n8n}
+\end{figure}
+
+\section{Conclusion}\label{sec:ch2-5}
+
+Ce chapitre a construit un serveur MCP pour MITRE ATT\&CK, décrit son moteur de mapping, puis mesuré ce qu'il apporte au \emph{mapping} de journaux dans des conditions proches de celles d'un centre opérationnel. Trois campagnes ont été rejouées sur le même corpus de 42 échantillons, le même harnais et le même modèle, contre une ligne de base établie au chapitre~\ref{chap:preparation} : le serveur seul, le serveur augmenté d'une procédure écrite, puis le même dispositif avec cache de prompt.
+
+\textbf{Ce qui est établi.} L'ancrage tient ses quatre garanties, exécution par exécution et non par construction : aucun identifiant inventé, aucun identifiant pris hors de la matrice de l'échantillon, aucun identifiant périmé --- contre 1,3 \% pour le modèle seul --- et 100 \% de réponses appuyées sur un identifiant que le serveur avait effectivement rendu. Aucune réponse n'a été produite de mémoire alors que les outils étaient disponibles. La qualité suit : le F1 technique passe de 0,563 à 0,730, le F1 tactique de 0,587 à 0,865, et le gain est le plus fort exactement là où le modèle était le plus faible, la matrice industrielle passant de 0,262 à 0,500. La procédure écrite y ajoute ce que la boucle d'outils avait coûté --- la stabilité remonte à 83,3 \%, au-dessus du modèle sans serveur --- et divise par deux les échecs de recherche. Le cache, enfin, ramène la facture de 45,71 \$ à 16,23 \$ sans toucher à un seul des scores, ce qui rend le coût de l'ancrage supportable là où il était rédhibitoire.
+
+Ces résultats comblent une partie de ce que la revue laissait ouvert. La supériorité de l'accès déterministe sur le \emph{mapping} ATT\&CK n'était pas mesurée en conditions de SOC (\textbf{QR3}) : elle l'est ici, sur des indicateurs qui séparent ce que le serveur fournit de ce que le modèle retient. L'évaluation sur de la télémétrie industrielle restait un angle mort (\textbf{QR1}) : les 42 échantillons sont générés en laboratoire, donc garantis non contaminés, et un tiers d'entre eux relève de la zone OT. Et la propriété que le RAG ne pouvait pas offrir --- un résultat daté, reproductible, rattaché à une version nommée du référentiel (\textbf{QR2}) --- est ici une conséquence directe de l'architecture, non un effet de bord.
+
+\textbf{Ce qui reste ouvert.} Trois limites sont assumées. La première est la sélection : 21,4 points séparent encore ce que le serveur fournit de ce que le modèle retient au niveau technique, et c'est désormais le premier poste d'erreur. La deuxième est la matrice industrielle, qui plafonne à 0,500 et que la procédure écrite n'a pas fait progresser --- les techniques voisines d'une même tactique ICS se distinguent par des fonctions que le journal ne discrimine pas toujours. La troisième tient à la clé d'évaluation elle-même : sur les observations qui portent un moyen et son effet, la convention d'étiquetage n'est pas écrite et varie d'un échantillon à l'autre, de sorte qu'une part de l'erreur résiduelle n'est pas imputable au dispositif. À quoi s'ajoute la portée du banc d'essai --- un seul modèle, 42 échantillons, trois exécutions --- et un coût d'exploitation qui demeure 3,5 fois celui d'une réponse non vérifiée, pour un temps de traitement 4,8 fois plus long.
+
+\textbf{Ce qui suit.} Le serveur a été conçu en lecture seule, journalisé et versionné, parce que la revue avait montré que le MCP déplace le risque du texte vers l'action (\textbf{QR4}). Ces propriétés ont été décrites, non éprouvées. Le chapitre suivant les met à l'épreuve : il prolonge l'approche par un flux multi-MCP d'audit de sécurité, fondé sur le référentiel ATLAS et placé sous contrainte réglementaire canadienne.

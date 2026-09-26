@@ -1,0 +1,79 @@
+% =====================================================================
+%  Figure 1.3 --- Architecture du MCP
+%  Version TikZ editable. Le bloc serveur du bas porte desormais le seul
+%  titre « MCP Splunk (SIEM) ».
+%  Prerequis dans le preambule :
+%     \usepackage{tikz}
+%     \usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds}
+% =====================================================================
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=5pt]},
+    hote/.style   = {draw=blue!45!black, fill=blue!5, rounded corners=4pt,
+                     line width=0.7pt},
+    serveur/.style= {draw=teal!65!black, fill=teal!4, rounded corners=4pt,
+                     line width=0.7pt, align=left, inner sep=6pt},
+    boite/.style  = {draw=black!75, fill=white, rounded corners=3pt,
+                     line width=0.6pt, align=center, inner sep=4pt},
+    source/.style = {draw=black!45, fill=black!8, rounded corners=2pt,
+                     line width=0.6pt, align=center, inner sep=4pt},
+    lien/.style   = {<->, line width=0.7pt},
+  ]
+
+% ---------------------------------------------------------------- hote
+\node[boite, minimum width=2.1cm, minimum height=0.95cm] (llm) at (0,0) {\normalsize LLM};
+\node[boite, minimum width=2.5cm, right=1.15cm of llm, yshift=1.05cm]
+     (cli1) {Client MCP\\(1 session)};
+\node[boite, minimum width=2.5cm, right=1.15cm of llm, yshift=-1.05cm]
+     (cli2) {Client MCP\\(1 session)};
+
+\draw[->, line width=0.7pt] (llm.east) -- (cli1.west);
+\draw[->, line width=0.7pt] (llm.east) -- (cli2.west);
+
+\node[above=1.45cm of llm.north west, anchor=west, align=left, xshift=-0.15cm]
+     (htitre) {\bfseries\normalsize\color{blue!45!black} Hôte (application LLM)\\[1pt]
+               \footnotesize\color{black!60} assistant SOC, IDE, agent d'audit};
+\node[below=1.55cm of llm.south west, anchor=west, align=left, xshift=-0.15cm]
+     (hpied) {\footnotesize\color{black!60}
+              côté client : \emph{sampling}, \emph{roots}, \emph{elicitation}};
+
+\begin{scope}[on background layer]
+  \node[hote, fit=(htitre)(llm)(cli1)(cli2)(hpied), inner sep=8pt] (hote) {};
+\end{scope}
+
+% ------------------------------------------------- frontiere de confiance
+\coordinate (fx) at ($(hote.east)+(1.0cm,0)$);
+\draw[dashed, line width=0.8pt, red!70!black]
+      ($(fx)+(0,2.75cm)$) -- ($(fx)+(0,-2.75cm)$);
+\node[above, red!70!black, font=\small] at ($(fx)+(0,2.75cm)$)
+     {frontière de confiance};
+
+% ------------------------------------------------------------- serveurs
+\node[serveur, anchor=west, text width=5.5cm]
+      at ($(fx)+(1.6cm,1.35cm)$) (srvA)
+     {{\bfseries\normalsize\color{teal!55!black} Serveur A} : \texttt{mitre-mcp}\\[2pt]
+      \textbf{Outils} : \texttt{get\_technique}, \texttt{search}\ldots\\
+      \textbf{Ressources} : fiches ATT\&CK (lecture)\\
+      \textbf{Invites} : gabarits d'analyse};
+
+\node[serveur, anchor=west, text width=5.5cm, minimum height=1.5cm,
+      align=center]
+      at ($(fx)+(1.6cm,-1.55cm)$) (srvB)
+     {{\bfseries\normalsize\color{teal!55!black} MCP Splunk (SIEM)}};
+
+% ------------------------------------------------------------- sources
+\node[source, right=0.7cm of srvA, text width=2.5cm] (srcA)
+     {Référentiel\\ATT\&CK (STIX,\\index locaux)};
+\node[source, right=0.7cm of srvB, text width=2.5cm] (srcB)
+     {API distante,\\base, fichiers};
+
+\draw[lien] (srvA.east) -- (srcA.west);
+\draw[lien] (srvB.east) -- (srcB.west);
+
+% ------------------------------------------------------------- messages
+\draw[lien] (cli1.east) -- node[above, font=\scriptsize, pos=0.5,
+            fill=white, inner sep=1.5pt] {JSON-RPC / stdio} (srvA.west);
+\draw[lien] (cli2.east) -- node[above, font=\scriptsize, pos=0.5,
+            fill=white, inner sep=1.5pt] {JSON-RPC / HTTP} (srvB.west);
+
+\end{tikzpicture}

@@ -1,0 +1,1379 @@
+%% ===================================================================
+%% CHAPITRE 1 : Préparation
+%% Revue de littérature et méthodologie d'évaluation
+%% ===================================================================
+\chapter{Préparation}\label{chap:preparation}
+\label{chap:preparation}
+
+Ce premier chapitre établit le cadre théorique et opérationnel de notre étude. Nous proposons d'abord une revue de littérature qui examine la capacité des approches actuelles à ancrer le raisonnement des grands modèles de langage en cyberdéfense, puis nous présentons la méthodologie d'évaluation retenue pour mesurer l'apport de notre approche.
+
+\section{Revue de littérature}\label{sec:revue}
+Cette revue se lit comme un entonnoir : on étudie les grands modèles de langage (LLM) en cybersécurité, puis l'ancrage par la récupération, l'ancrage par les outils jusqu'au MCP, puis le revers : la sécurité des systèmes agentiques.
+
+\FloatBarrier
+\subsection{Axe 1 --- Les LLM en cyberdéfense : valeur, mesure, limites}\label{sec:axe1}
+
+Les synthèses récentes attestent d'usages allant de la détection d'intrusion à l'assistance à l'analyste ; la vaste revue de Kheddar dans \emph{Information Fusion} en fournit la cartographie pour les systèmes de détection d'intrusion \cite{kheddar}. L'axe examine successivement la tâche pivot de l'essai (le \emph{mapping} ATT\&CK), la façon de mesurer sans se tromper, la fiabilité, puis l'angle mort industriel.
+
+\soustitre{Cartographier vers ATT\&CK : deux générations et un plafond}
+
+\textbf{MITRE ATT\&CK} est une base de connaissances ouverte qui catalogue les comportements adverses en \emph{techniques} (p. ex. « vol d'identifiants en mémoire »), regroupées par \emph{tactiques} (l'objectif poursuivi) ; l'édition Enterprise compte environ deux cents techniques et, depuis la scission de \emph{Defense Evasion} en version 19, quinze tactiques \cite{attack}. \emph{Mapper} une menace consiste à lire une description d'activité --- rapport d'incident, journal, règle de détection --- et à retrouver la ou les techniques qu'elle illustre : c'est la brique de base de la détection contextualisée.
+
+\textbf{Génération 1 : la classification supervisée.} L'outil emblématique est TRAM (\emph{Threat Report ATT\&CK Mapper}) du Center for Threat-Informed Defense \cite{tram} : un modèle SciBERT affiné sur des phrases étiquetées à la main ne couvre qu'une cinquantaine des techniques les plus fréquentes. Le plafond n'est pas paramétrique mais structurel : l'annotation experte est un goulot d'étranglement et la couverture reste partielle, comme le documente la synthèse de Rahman \emph{et al.} sur l'extraction automatique de renseignement \cite{rahman}.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-1-arc-ancrage}
+\caption{L'arc de l'ancrage, fil conducteur des axes 1 à 3 : chaque étape corrige la précédente et en déplace la limite. L'essai porte sur la troisième étape et sur sa comparaison empirique avec la deuxième.}\label{fig:arc-ancrage}
+\end{figure}
+
+\textbf{Génération 1 bis : les graphes de connaissances.} AttacKG (ESORICS 2022) reconstruit, à partir d'un rapport, le graphe des actions de l'attaquant, puis agrège les graphes de plusieurs rapports en graphes de techniques \cite{attackg}. Sur un large corpus réel il identifie 28 262 techniques et 8393 indicateurs de compromission ; sur seize rapports annotés, il atteint des F1 de 0,887 (entités), 0,896 (dépendances) et 0,789 (techniques), au-dessus des méthodes antérieures.
+
+\textbf{La mesure : CTIBench.} Ce banc d'essai (NeurIPS 2024, piste \emph{Datasets and Benchmarks}) évalue les LLM sur des tâches de renseignement, dont l'extraction de techniques (CTI-ATE) \cite{ctibench}. Les modèles ouverts y sont faibles (Llama-3-8B $\approx$ 0,16 de F1) ; les modèles propriétaires ne sont pas mûrs pour un usage non supervisé (ChatGPT-3.5 $\approx$ 0,31, ChatGPT-4 0,64, meilleur du panel)\footnote{Le papier est ambigu sur la métrique : le texte parle de micro-F1, le tableau de macro-F1. Les valeurs sont celles du tableau publié.}. Son prolongement AthenaBench montre que la domination des modèles propriétaires ne s'étend pas au raisonnement --- attribution d'un attaquant, choix d'une mitigation --- où tous restent faibles \cite{athenabench}.
+
+\begin{encadre}
+\textbf{Conclusion :} Classification ou graphe, la première génération bute sur un plafond qui tient à la nature de la tâche : le \emph{mapping} n'est pas une reconnaissance de mots-clés mais un raisonnement contextuel, et même le meilleur LLM généraliste s'arrête à 0,64 de F1 sans ancrage (\textbf{QR1}).
+\end{encadre}
+
+\soustitre{Mesurer sans se tromper : capacité et contamination}
+
+CyberSecEval (Meta) mesure deux propensions : produire du code vulnérable et se laisser enrôler dans une attaque, sur 8 langages, 50 faiblesses CWE et 10 catégories de techniques ATT\&CK \cite{cyberseceval}. En moyenne les modèles suggèrent du code vulnérable dans environ 30\,\% des cas, et --- motif récurrent de cette revue --- les modèles les plus compétents sont souvent les plus enclins à l'insécurité.
+
+La contamination des jeux de test est le piège méthodologique central. Si les exemples d'un banc d'essai, et surtout leurs réponses, figuraient dans les données d'entraînement, le modèle récite au lieu de raisonner. PrimeVul (ICSE 2025) le démontre sur la détection de vulnérabilités \cite{primevul} : avec un jeu dédupliqué et découpé chronologiquement (près de 7000 fonctions vulnérables, 228 800 saines, 140 CWE), un modèle de 7 milliards de paramètres crédité de 68,3\,\% de F1 sur BigVul s'effondre à 3,1\,\%, GPT-4 se rapproche du hasard, et 18,9\,\% des échantillons de BigVul fuitaient dans le jeu de test.
+
+\begin{encadre}
+\textbf{Conclusion :} Les bancs d'essai publics surestiment massivement les performances parce que les modèles ont déjà vu les données. Ce résultat justifie directement, dans l'essai, la génération de journaux propres en laboratoire plutôt que la réutilisation d'un jeu public (\textbf{QR1}).
+\end{encadre}
+
+\soustitre{Fiabilité : l'ancrage plutôt que la taille}
+
+La synthèse de Ji \emph{et al.} distingue l'hallucination intrinsèque (le modèle contredit la source fournie) de l'extrinsèque (il affirme l'invérifiable) \cite{ji}. En cybersécurité les conséquences sont concrètes : attribuer une technique inexistante oriente l'investigation puis la remédiation vers la mauvaise cible, au point que Mezzi, Massacci et Tuma concluent à l'\emph{unreliability} des LLM pour le renseignement sur les menaces lorsqu'ils opèrent sans garde-fou \cite{mezzi}. Le point capital, et contre-intuitif, est que la fiabilité factuelle dépend de l'ancrage et non de la taille : le programme \emph{Inverse Scaling} (TMLR 2023) a mis au jour des tâches où un modèle plus grand fait pire, notamment parce qu'il s'appuie avec excès sur ses connaissances mémorisées \cite{inversescaling}.
+
+Sur le terrain, enfin, la contrainte première n'est pas la détection mais le volume : la synthèse de Tariq \emph{et al.} sur la fatigue d'alerte (ACM CSUR 2025) décrit un déluge quotidien d'alertes majoritairement faussement positives, dont une part importante reste sans investigation \cite{tariq}. Les LLM y ont une valeur d'augmentation --- résumer une alerte, interpréter une commande, contextualiser un incident --- avec un humain dans la boucle pour les cas critiques.
+
+\begin{encadre}
+\textbf{Conclusion :} Ancrer le raisonnement dans une base vérifiable est plus efficace qu'augmenter la puissance de calcul ; c'est l'argument directeur de l'essai (\textbf{QR1}).
+\end{encadre}
+
+\soustitre{L'angle mort : la détection en environnement industriel (OT/ICS)}
+
+L'informatique de gestion (IT) et l'informatique industrielle (OT : automates, capteurs, protocoles de terrain comme Modbus qui pilotent des procédés physiques) sont deux mondes ; or, pour un opérateur d'infrastructure critique, l'incident type traverse la frontière IT/OT. La quasi-totalité des travaux ci-dessus porte sur l'IT. Les rares travaux industriels sont éclairants : Kong, Saber, Youssef et Kundur évaluent un LLM prêt à l'emploi comme couche de détection explicable et supervisée sur du trafic Modbus d'un réseau électrique, en insistant sur des alarmes auditables --- comprises, tracées, archivées pour la réponse à incident \cite{kong} --- un cahier des charges très proche de celui d'Hydro-Québec. La synthèse de Kheddar confirme que le modèle est surtout employé comme assistant sur des rapports en langage naturel, rarement comme analyste de jetons de protocole industriel \cite{kheddar}.
+
+\begin{encadre}
+\textbf{Conclusion :} L'évaluation des LLM sur de la télémétrie OT reste largement inexplorée : c'est le vide que le laboratoire IT/OT de l'essai --- une simulation de procédé GRFICS v3 instrumentée par une sonde Zeek, produisant du trafic Modbus conforme au protocole réel et garanti non contaminé --- vient combler ; l'évaluation sur des journaux d'exploitation OT reste une perspective (\textbf{QR1}).
+\end{encadre}
+
+\FloatBarrier
+\subsection{Axe 2 --- Ancrer par la récupération : le RAG et ses limites}\label{sec:axe2}
+
+L'axe 1 a posé le problème : les LLM aident mais hallucinent, et leur fiabilité tient à l'ancrage. La communauté a exploré deux voies (figure~\ref{fig:arc-ancrage}) : récupérer de l'information, objet de cet axe, puis appeler des outils (axe 3).
+
+\textbf{Définition.} La génération augmentée par récupération (RAG) a été formalisée par Lewis \emph{et al.} (NeurIPS 2020) comme le couplage d'un récupérateur dense --- qui plonge requête et documents dans un même espace vectoriel et sélectionne les \emph{k} passages les plus proches --- et d'un générateur conditionné sur ces passages \cite{lewis}. Le modèle ne répond plus « de mémoire » mais sur la foi de documents fournis à la volée, ce qui réduit l'hallucination et permet de citer. La taxonomie de Gao \emph{et al.} distingue le RAG naïf, avancé (reformulation, re-classement) et modulaire \cite{gao} ; les systèmes ci-dessous relèvent de la seconde catégorie.
+
+\textbf{Application au \emph{mapping}.} TechniqueRAG est l'état de l'art : pour un texte donné, il récupère des exemples de techniques pertinents, les fait re-classer par un LLM, puis génère la réponse avec un modèle affiné, surpassant nettement les approches sans ancrage \cite{techniquerag}. RAM (\emph{Rule-ATT\&CK Mapper}) applique la même logique aux règles de détection d'un SIEM --- le moteur central du SOC qui collecte les journaux et déclenche les alertes --- et relie chaque règle aux techniques qu'elle détecte, aux composants de données et aux mitigations associés \cite{ram}.
+
+\textbf{Trois limites.} (a) \emph{Similarité n'est pas pertinence} : le récupérateur renvoie ce qui ressemble à la requête, et un voisin vectoriel peut décrire une technique adjacente mais distincte, précisément là où le \emph{mapping} demande une discrimination fine. (b) \emph{Non-déterminisme} : le résultat dépend du modèle de plongement, du découpage des documents et de \emph{k} ; deux exécutions ne sont pas garanties identiques, ce qui complique l'audit d'une alerte. (c) \emph{La base est une surface d'attaque} : PoisonedRAG (USENIX Security 2025) formule l'empoisonnement comme un problème d'optimisation --- le texte injecté doit être récupéré \emph{et} induire la réponse voulue --- et obtient 90\,\% de réussite, jusqu'à 97\,\% sur certains jeux, en injectant cinq textes dans une base de plus de 2,6 millions de documents ; les défenses testées (reformulation, détection par perplexité) sont insuffisantes \cite{poisonedrag}. La figure~\ref{fig:rag-outils} oppose cette chaîne probabiliste à l'accès déterministe de l'axe 3.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-2-rag-vs-outils}
+\caption{Deux façons d'ancrer le même raisonnement. Le RAG récupère un voisin plausible par similarité ; l'accès outillé récupère la définition exacte par une requête structurée. La surface d'attaque ne disparaît pas : elle se déplace de la base vers la chaîne d'approvisionnement du serveur.}\label{fig:rag-outils}
+\end{figure}
+
+\begin{encadre}
+\textbf{Conclusion :} La récupération par ressemblance n'est ni pleinement fiable (un voisin peut être hors sujet, et le résultat n'est pas reproductible) ni pleinement sûre (la base est empoisonnable). D'où la recherche d'un ancrage plus déterministe (\textbf{QR2}).
+\end{encadre}
+
+\FloatBarrier
+\subsection{Axe 3 --- Ancrer par les outils : de l'apprentissage par outils au MCP}\label{sec:axe3}
+
+La seconde voie ne récupère pas un document ressemblant : elle appelle un outil qui renvoie un fait exact. C'est le paradigme de l'apprentissage par outils (\emph{tool learning}), fondement théorique direct du MCP.
+
+\soustitre{Le paradigme de l'apprentissage par outils}
+
+Toolformer (NeurIPS 2023) est un modèle qui a appris, de façon auto-supervisée, à décider lui-même quand insérer un appel d'outil au fil de sa génération : il insère des appels candidats dans des textes, les exécute, et ne conserve que ceux dont le résultat réduit sa perplexité sur la suite \cite{toolformer}. Cinq outils sont testés (calculatrice, recherche Wikipédia, questions-réponses, traduction, calendrier) sur un modèle de 6,7 milliards de paramètres. Sur les problèmes arithmétiques, Toolformer atteint 29,4\,\% (SVAMP) et 40,4\,\% (ASDiv) sans exemple, contre 10,0\,\% et 14,0\,\% pour GPT-3 --- 175 milliards de paramètres, soit un modèle environ 25 fois plus gros ; le contre-exemple est instructif : sur les questions factuelles, le moteur de recherche employé est trop rudimentaire et GPT-3 reprend l'avantage. L'outil ne vaut que ce que vaut sa source.
+
+ReAct (ICLR 2023) est une méthode de sollicitation qui alterne explicitement « pensées » (raisonnement en langage naturel) et « actions » (appels d'outils) \cite{react}. En ancrant chaque étape dans un résultat concret, ReAct réduit l'hallucination sur HotpotQA et, sur deux environnements interactifs (ALFWorld, WebShop), dépasse de 34 et 10 points de taux de succès des méthodes entraînées sur 10\textsuperscript{3} à 10\textsuperscript{5} exemples, avec un ou deux exemples seulement. La synthèse de Qin \emph{et al.} (ACM CSUR 2024) généralise : doter un modèle d'outils atténue à la fois l'obsolescence de ses connaissances et ses hallucinations, et déplace le problème vers la sélection et la composition des outils \cite{qin}.
+
+\begin{encadre}
+\textbf{Conclusion :} Le bon appel d'outil vaut plus que vingt-cinq fois plus de paramètres --- à condition que l'outil renvoie un fait exact (\textbf{QR3}).
+\end{encadre}
+
+\soustitre{Le MCP : standardiser l'ancrage par outils}
+
+\textbf{Définition et architecture.} Le \emph{Model Context Protocol}, ouvert par Anthropic en novembre 2024, n'est pas un modèle mais un protocole qui standardise l'accès d'une application LLM à des outils et à des données \cite{mcpintro}. L'analogie usuelle est le port USB-C : un connecteur unique remplace une multitude de câbles propriétaires. L'architecture (figure~\ref{fig:archi-mcp}) distingue l'hôte (l'application), qui instancie un client par connexion, et les serveurs qui exposent trois primitives : des \emph{outils} (fonctions invocables), des \emph{ressources} (données en lecture) et des \emph{invites} (gabarits) ; le client expose en retour \emph{sampling}, \emph{roots} et \emph{elicitation}. Les messages sont en JSON-RPC 2.0 sur deux transports : \emph{stdio} pour un serveur local et \emph{Streamable HTTP} pour un serveur distant, ce dernier protégé par une autorisation OAuth 2.1 \cite{mcpspec2025}.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-3-architecture-mcp}
+\caption{Architecture du MCP. L'hôte instancie un client par serveur ; chaque serveur expose outils, ressources et invites sur JSON-RPC 2.0. Le serveur du bas est le connecteur SIEM de l'essai. Tout ce qui est à droite de la frontière est, par défaut, non fiable : c'est le point de départ de l'axe 4.}\label{fig:archi-mcp}
+\end{figure}
+
+\textbf{Évolution et gouvernance.} Le protocole a mûri vite (tableau~\ref{tab:revisions-mcp}). La révision 2025-03-26 a ajouté l'autorisation OAuth 2.1, le transport \emph{Streamable HTTP} et des annotations décrivant le comportement d'un outil (lecture seule, destructif) ; la révision 2025-06-18 a classé les serveurs comme \emph{resource servers} OAuth, rendu obligatoires les indicateurs de ressource (RFC 8707) pour empêcher un serveur malveillant d'obtenir des jetons, et introduit la sortie structurée et l'\emph{elicitation} \cite{mcpspec2025}. Le 9 décembre 2025, Anthropic a transféré le protocole à l'Agentic AI Foundation, fonds dirigé de la Linux Foundation cofondé avec Block et OpenAI, à un moment où plus de 10 000 serveurs publics étaient actifs \cite{aaif}. Enfin la révision 2026-07-28 --- la plus importante depuis le lancement --- rend le noyau du protocole sans état, durcit l'autorisation (validation de l'émetteur, \emph{Client ID Metadata Documents}), formalise un cadre d'extensions et une politique de dépréciation \cite{mcpspec2026} : un serveur distant devient une charge HTTP ordinaire, à laquelle s'applique l'outillage de sécurité HTTP classique.
+
+
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.1580}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4210}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4210}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Révision}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Apports majeurs}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Implication pour un serveur de SOC}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+2024-11-05 & Primitives (outils, ressources, invites) ; stdio et HTTP+SSE & Garde-fous de consentement en \emph{should} ; sécurité laissée à l'implémenteur \\
+2025-03-26 & OAuth 2.1 ; \emph{Streamable HTTP} ; annotations d'outils ; lots JSON-RPC & Les annotations sont des indications : la spécification les déclare non fiables sauf serveur de confiance \\
+2025-06-18 & Serveurs = \emph{resource servers} ; RFC 8707 obligatoire ; sortie structurée ; \emph{elicitation} ; page de bonnes pratiques & Premiers \emph{must} de sécurité ; sortie typée = validation possible côté client \\
+2025-11-25 & Révision intermédiaire ; consolidation par SEP et groupes de travail & Gouvernance communautaire (AAIF) \\
+2026-07-28 & Noyau sans état ; autorisation durcie (émetteur, CIMD) ; cadre d'extensions ; politique de dépréciation & Serveur distant = charge HTTP standard ; extensions à auditer séparément \\
+\end{longtable}
+\legendetableau{Révisions de la spécification MCP et implications de sécurité \cite{mcpintro,mcpspec2025,mcpspec2026}.}{tab:revisions-mcp}
+
+\textbf{Application au \emph{mapping} : l'accès déterministe.} Le serveur mitre-mcp (Montimage) expose l'intégralité d'ATT\&CK sous forme d'outils interrogeables, avec des recherches en temps constant grâce à des index préconstruits \cite{mitremcp}. Lorsqu'il a besoin de la description d'une technique, le modèle ne récupère pas un voisin plausible : il exécute une requête structurée et obtient la définition exacte, de façon reproductible et journalisable. La surface d'empoisonnement par similarité disparaît ; elle se déplace vers la chaîne d'approvisionnement du serveur lui-même, objet de l'axe 4.
+
+\textbf{Une réserve sur le référentiel.} Une analyse conjointe d'Anthropic et de Verizon, qui a cartographié 832 comptes malveillants et 13 873 actions sur la version 18 d'ATT\&CK (482 sous-techniques, 14 tactiques), souligne qu'ATT\&CK ne capture pas encore l'orchestration autonome par des agents d'IA, marque des campagnes les plus avancées \cite{anthropicverizon}. Le référentiel ancré reste donc une borne inférieure de la menace.
+
+\soustitre{Ce que la littérature empirique mesure sur le MCP}
+
+La littérature savante sur le MCP a moins de deux ans, mais quatre travaux portent directement sur la question de l'essai : combien d'outils exposer, ce que l'ancrage fait gagner, ce qu'il tient en conditions réelles, et ce qu'il coûte en sécurité. Le tableau~\ref{tab:litt-mcp} les rassemble.
+
+\textbf{Trop d'outils dégrade la sélection.} Gan et Sun mesurent l'effet du nombre d'outils exposés à un modèle \cite{ragmcp}. Leur essai de charge présente au modèle $N$ descriptions de serveurs --- une seule pertinente, les autres tirées d'un annuaire de plus de 4400 serveurs publics --- et fait varier $N$ de 1 à plus de 11 000 sur vingt tâches de recherche. En deçà d'une trentaine de candidats, le bon outil est choisi dans plus de 90\,\% des cas ; entre trente et soixante-dix, les échecs apparaissent par grappes, les descriptions voisines se confondant ; au-delà d'une centaine, l'échec domine. Deux causes se cumulent : l'\emph{encombrement de l'invite}, le contexte étant saturé de distracteurs, et la \emph{charge de décision}, des outils aux fonctions proches devenant indiscernables. La mesure chiffrée est nette : présenter tous les outils d'un coup donne 13,62\,\% de sélections correctes pour 2134 jetons d'invite, un pré-filtrage par mots-clés 18,20\,\% pour 1646 jetons, et une pré-sélection sémantique n'injectant que le meilleur candidat 43,13\,\% pour 1084 jetons --- soit plus du triple de justesse pour la moitié des jetons.
+
+\textbf{L'appel à la demande restaure l'efficacité.} Fei, Zheng et Feng inversent la logique : plutôt que d'injecter tous les schémas dès le départ, le modèle énonce lui-même le besoin qu'il ne peut satisfaire, et un routage à deux étages --- d'abord le serveur, ensuite l'outil --- ne lui renvoie que ce qu'il a demandé \cite{mcpzero}. Sur un corpus de 308 serveurs et 2797 outils issus du dépôt officiel, le bon outil est retrouvé parmi près de trois mille candidats représentant 248 100 jetons, et la consommation chute de 98\,\% sur APIBank à justesse maintenue. L'enseignement pour l'essai est direct : le coût de l'ancrage est une variable de conception, non une fatalité du protocole.
+
+\textbf{En conditions réelles, l'apport reste partiel.} MCP-Universe (Salesforce AI Research) évalue les modèles sur 231 tâches réparties en six domaines et servies par 11 serveurs MCP réels, avec des évaluateurs qui vérifient l'exécution plutôt que la forme de la réponse \cite{mcpuniverse}. Aucun modèle ne franchit la moitié des tâches : GPT-5 réussit 43,72\,\%, Grok-4 33,33\,\% et Claude-4.0-Sonnet 29,44\,\%. Deux causes d'échec reviennent, et toutes deux concernent l'essai : le contexte enfle avec le nombre d'étapes, et les outils inconnus sont mal exploités. La tâche de l'essai --- un référentiel unique, en lecture seule, sur un nombre d'étapes borné --- se situe précisément dans le cas favorable que ce banc d'essai isole par contraste.
+
+\textbf{La sécurité du protocole reste en retard.} Yang, Wu et Chen proposent la première formalisation systématique des surfaces d'attaque du MCP : 17 types d'attaques répartis sur quatre surfaces --- interaction avec l'utilisateur, client, transport et serveur --- éprouvés sur trois hôtes du commerce \cite{mcpsecbench}. Plus de 85\,\% de ces attaques compromettent au moins une plateforme, les failles de protocole et d'implémentation atteignant 100\,\% de réussite, et les protections intégrées n'en arrêtent qu'une fraction. Le constat annonce l'axe 4 : ce qui est standardisé, c'est l'accès, pas sa sûreté.
+
+
+{\footnotesize
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.2300}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3600}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4100}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Travail}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dispositif}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Résultat clé}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Gan et Sun (2025) \cite{ragmcp} & Essai de charge, $N$ de 1 à 11 000 serveurs, annuaire de 4400+ & Effondrement au-delà de 100 outils ; 13,62\,\% $\rightarrow$ 43,13\,\% avec pré-sélection, jetons divisés par deux \\
+MCP-Zero (2025) \cite{mcpzero} & 308 serveurs, 2797 outils ; appel d'outil à la demande & Bon outil parmi $\approx$3000 candidats (248 100 jetons) ; $-$98\,\% de jetons sur APIBank \\
+MCP-Universe (2025) \cite{mcpuniverse} & 231 tâches, 11 serveurs réels, 6 domaines, évaluation par exécution & GPT-5 43,72\,\%, Grok-4 33,33\,\%, Claude-4.0-Sonnet 29,44\,\% ; contexte long et outils inconnus \\
+MCPSecBench (2025) \cite{mcpsecbench} & 17 attaques, 4 surfaces, 3 hôtes du commerce & \textgreater85\,\% des attaques réussissent sur au moins un hôte ; protocole et implémentation à 100\,\% \\
+\end{longtable}
+\legendetableau{Ce que la littérature empirique établit sur le MCP (axe 3).}{tab:litt-mcp}
+}
+
+\textbf{Ce que ces quatre travaux imposent à la conception du serveur.} Ils convergent vers une règle simple : un serveur MCP utile est un serveur \emph{étroit}. Exposer peu d'outils, aux périmètres nettement séparés, préserve la justesse de sélection que le premier travail voit s'effondrer ; ne servir que la réponse demandée, sans contexte superflu, préserve le budget de jetons que le deuxième optimise ; borner le nombre d'étapes évite la dérive que le troisième observe ; et n'offrir aucune écriture réduit la surface que le quatrième mesure. Ces quatre contraintes sont celles retenues pour le serveur de l'essai.
+
+\begin{encadre}
+\textbf{Conclusion :} L'accès déterministe est l'aboutissement de l'arc de l'ancrage, et le MCP en est désormais le standard sous gouvernance neutre. La littérature empirique en fixe déjà les conditions d'emploi --- peu d'outils, servis à la demande, sur un nombre d'étapes borné --- mais elle mesure l'ancrage outillé sur des tâches génériques, jamais sur le \emph{mapping} ATT\&CK en conditions de SOC : c'est l'un des buts directs de l'essai (\textbf{QR3}).
+\end{encadre}
+
+\FloatBarrier
+\subsection{Axe 4 --- Le revers : sécurité des agents outillés et du MCP}\label{sec:axe4}
+
+Les trois premiers axes construisent l'argument pour l'ancrage outillé ; le quatrième en examine le revers. La bascule est fondamentale : un LLM isolé qui se trompe produit un texte erroné ; un LLM connecté à des outils qui se trompe peut exécuter une action sur un système réel. Le risque passe du registre de l'erreur à celui du dommage, ce que l'OWASP nomme \emph{excessive agency} dans son classement 2025 des risques des applications LLM \cite{owasp}.
+
+\soustitre{La faille fondatrice : l'injection indirecte de prompt}
+
+On distingue l'injection directe (l'attaquant tape l'instruction) de l'injection indirecte, plus insidieuse : l'instruction est cachée dans un contenu tiers --- page web, courriel, résultat d'outil --- que le modèle lit au cours de sa tâche. Greshake \emph{et al.} (AISec, ACM CCS 2023) en ont établi le principe et l'ont démontré sur des applications réelles : parce que le modèle ne distingue pas les données qu'il traite des instructions qu'il doit suivre, un contenu piégé le détourne à distance \cite{greshake}. Deux bancs d'essai quantifient la vulnérabilité des agents outillés, cas exact du MCP. InjecAgent (ACL 2024) compose 1054 cas à partir de 17 outils légitimes et 62 outils d'attaquant : un agent GPT-4 guidé par ReAct est détourné dans 24\,\% des cas, 47\,\% avec des invites d'attaque renforcées \cite{injecagent}. AgentDojo (NeurIPS 2024) va plus loin avec un environnement dynamique de 97 tâches réalistes et 629 cas de sécurité qui mesure conjointement utilité et résistance : sous attaque, l'utilité de GPT-4o chute d'environ 69\,\% à 50\,\%, avec des taux de réussite d'attaque atteignant 53\,\% \cite{agentdojo}.
+
+\begin{encadre}
+\textbf{Conclusion :} Les agents outillés sont, en l'état, largement vulnérables, et la vulnérabilité tient à une propriété du modèle --- il suit ce qu'il lit --- que ni la taille ni l'alignement n'ont résolue (\textbf{QR4}).
+\end{encadre}
+
+\soustitre{Ce que le MCP ajoute --- mesuré sur des serveurs réels}
+
+\textbf{Taxonomie.} L'étude de paysage de Hou \emph{et al.} fait référence : elle organise les menaces le long du cycle de vie du serveur --- création (collision de noms, installateur usurpé, code injecté), opération (conflits de noms d'outils, chevauchement de commandes, évasion du bac à sable) et mise à jour (persistance de privilèges, redéploiement de versions vulnérables, dérive de configuration) --- et identifie un mécanisme central, la propagation de confiance : dans un hôte combinant plusieurs serveurs, un seul serveur compromis peut influencer le comportement des outils légitimes \cite{hou}. La figure~\ref{fig:surface-attaque} en donne une lecture opérationnelle.
+
+L'empoisonnement d'outil (\emph{tool poisoning}) est la menace spécifique qui dicte la conception à venir : les instructions malveillantes sont glissées non dans les données échangées mais dans la \emph{description} de l'outil, ce texte que le modèle lit pour savoir quand et comment l'employer. Révélée par Invariant Labs en avril 2025 avec une démonstration d'exfiltration de conversations \cite{invariant}, elle a été mesurée à grande échelle par MCPTox (AAAI 2026) : à partir de 45 serveurs réels et de 353 outils authentiques, plus de 1300 cas d'attaque évalués sur 20 modèles donnent un taux de réussite moyen de 36,5\,\%, culminant à 72,8\,\% (o1-mini), le taux de refus restant partout inférieur à 3\,\% \cite{mcptox}. Fait marquant, en écho aux axes 1 et 3, les modèles les plus capables sont souvent les plus vulnérables, l'attaque exploitant leur meilleure aptitude à suivre les instructions.
+
+\textbf{L'état de l'écosystème.} La première étude empirique à grande échelle, publiée dans ACM TOSEM, a analysé 1899 serveurs MCP libres en combinant analyse statique générale et scanner spécifique \cite{hasan} : huit classes de vulnérabilités dont trois seulement recoupent le logiciel classique ; 7,2\,\% des serveurs portent une vulnérabilité générale et 5,5\,\% un empoisonnement d'outil ; 66\,\% présentent des odeurs de code et 14,4\,\% des motifs de bogues connus. Côté vulnérabilités avérées, CVE-2025-6514 (CVSS 9,6) permettait l'exécution de commandes arbitraires via l'utilitaire mcp-remote \cite{cve6514}, et CVE-2025-49596 (CVSS 9,4) exploitait l'absence d'authentification par défaut de l'inspecteur MCP \cite{cve49596} ; un audit outillé (MCPSafetyScanner) avait dès avril 2025 obtenu exécution de code et vol d'identifiants à travers des serveurs courants \cite{radosevich}.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-4-surface-attaque}
+\caption{Surface d'attaque d'un serveur MCP le long de son cycle de vie (taxonomie adaptée de Hou et al. \cite{hou}, chiffres de MCPTox \cite{mcptox} et des CVE \cite{cve6514,cve49596}) et réponses de conception retenues pour le serveur de l'essai.}\label{fig:surface-attaque}
+\end{figure}
+\begin{encadre}
+\textbf{Conclusion :} Ces failles ne sont pas exotiques : la plupart sont des manquements aux principes classiques (validation des entrées, moindre privilège, authentification). Une seule classe est nouvelle --- la description d'un outil devient un vecteur d'instruction --- et c'est elle qui impose des contrôles spécifiques au MCP (\textbf{QR4}).
+\end{encadre}
+
+\soustitre{Un modèle de sécurité en rattrapage, et les réponses émergentes}
+
+\textbf{La spécification.} Une part des garde-fous de consentement et de bonnes pratiques y est formulée en \emph{should} (recommandé) plutôt qu'en \emph{must} (obligatoire), ce qui les rend optionnels pour l'implémenteur ; la spécification prévient d'ailleurs elle-même que les descriptions et annotations d'outils doivent être considérées comme non fiables sauf serveur de confiance \cite{mcpspec2025}. Les révisions récentes comportent de véritables \emph{must}, surtout sur l'autorisation (tableau~\ref{tab:revisions-mcp}), mais rien n'oblige un serveur à être en lecture seule, à journaliser, ni à figer ses descriptions : ces propriétés relèvent de la conception de chaque serveur.
+
+\textbf{Les organismes.} Le centre de sécurité de l'IA de la NSA constate, dans une fiche de mai 2026, que la prolifération du MCP a devancé le développement de son modèle de sécurité\footnote{La co-signature de la CISA n'apparaît pas dans le communiqué officiel ; la référence est attribuée à la seule NSA (AISC).} \cite{nsa}. L'OWASP a publié un classement des risques des applications LLM (2025) puis des applications agentiques (2026) \cite{owasp}. Formaliser ces menaces dans un modèle auditable suppose une taxonomie dédiée à l'IA : MITRE ATLAS, calqué sur ATT\&CK mais orienté vers les attaques contre les systèmes d'IA, couvre désormais explicitement la compromission de serveurs MCP et l'injection indirecte \cite{atlas}. Au Canada, cette exigence d'auditabilité devient légale : la \emph{Loi sur la protection des cybersystèmes essentiels} (projet de loi C-8, sanction royale en juin 2026, qui reprend le projet C-26 devenu caduc) impose aux exploitants désignés d'infrastructures critiques un programme de cybersécurité documenté et la déclaration des incidents \cite{lpce}.
+
+\textbf{La défense outillée.} Le tableau~\ref{tab:vulnerabilite} rassemble les mesures ; côté défense active, l'automatisation de l'audit progresse. PentestGPT (USENIX Security 2024) coordonne trois modules --- raisonnement, génération de commandes, analyse des sorties --- autour d'un arbre de tâches qui maintient le fil de l'investigation, et augmente le taux de complétion des épreuves de 228,6\,\% par rapport à GPT-3.5, sous supervision humaine \cite{pentestgpt}. Des scanners spécifiques (mcp-scan, MCPSafetyScanner) détectent l'empoisonnement de descriptions \cite{invariant,radosevich}, et les passerelles de médiation qui filtrent et journalisent les appels sont la piste d'architecture la plus citée \cite{hou}.
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.2370}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3815}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3815}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Travail (lieu)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dispositif}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Résultat clé}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+PoisonedRAG (USENIX Sec'25) \cite{poisonedrag} & 5 textes injectés dans 2,6 M de documents & 90\,\% de réussite, jusqu'à 97\,\% \\
+InjecAgent (ACL'24) \cite{injecagent} & 1054 cas, 17 outils légitimes, 62 d'attaquant & GPT-4 + ReAct détourné à 24\,\%, 47\,\% renforcé \\
+AgentDojo (NeurIPS'24) \cite{agentdojo} & 97 tâches, 629 cas de sécurité, utilité + attaque & GPT-4o : utilité 69\,\% $\rightarrow$ 50\,\% ; attaque $\leq$ 53\,\% \\
+MCPTox (AAAI'26) \cite{mcptox} & 45 serveurs réels, 353 outils, \textgreater1300 cas, 20 modèles & Moy. 36,5\,\%, max 72,8\,\% ; refus \textless{} 3\,\% \\
+Hasan \emph{et al.} (TOSEM'26) \cite{hasan} & 1899 serveurs libres, analyse statique + scanner & 7,2\,\% vulnérables, 5,5\,\% empoisonnés, 66\,\% d'odeurs de code \\
+CVE-2025-6514 / 49596 \cite{cve6514,cve49596} & mcp-remote ; inspecteur MCP & CVSS 9,6 et 9,4 : exécution de code à distance \\
+\end{longtable}
+\legendetableau{Mesures de la vulnérabilité des agents outillés et du MCP (axe 4).}{tab:vulnerabilite}
+
+\begin{encadre}
+\textbf{Le \emph{rug pull} : pourquoi la confiance ne doit jamais être acquise}
+
+Un serveur se comporte correctement au moment de la validation initiale, puis modifie silencieusement ses outils une fois la confiance accordée \cite{hou}. Appliqué à notre cas, un outil de \emph{mapping} pourrait retirer discrètement certaines techniques de ses résultats, rendant des pans entiers d'attaques invisibles sans que l'analyste ne perçoive la dérive. C'est ce scénario, plus que l'exécution de code, qui dicte les choix du serveur développé dans l'essai : aucun outil d'écriture, référentiel en lecture seule vérifié par empreinte, descriptions d'outils gelées, bascule atomique des mises à jour et journalisation systématique de chaque appel (figure~\ref{fig:surface-attaque}).
+\end{encadre}
+
+\begin{encadre}
+\textbf{Conclusion :} La voie d'un audit de sécurité outillé et ancré est ouverte : c'est ce que le chapitre suivant prolonge avec un flux multi-MCP fondé sur ATLAS, sous contrainte réglementaire canadienne (\textbf{QR4}).
+\end{encadre}
+
+\subsection{Synthèse : acquis et lacunes}\label{sec:synthese-revue}
+
+Le tableau~\ref{tab:synthese-revue} met en regard, pour chaque question de revue, l'acquis chiffré de la littérature et la lacune qu'elle laisse ouverte.
+
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.0858}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4571}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.4571}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Acquis (chiffré)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Lacune actuelle}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{QR1} & Les LLM aident mais hallucinent ; leur mesure est piégée par la contamination (F1 68\,\% $\rightarrow$ 3\,\% \cite{primevul}) ; le meilleur modèle généraliste plafonne à 0,64 F1 en \emph{mapping} \cite{ctibench} ; l'OT est un angle mort \cite{kong,kheddar} & Aucune évaluation sur de la télémétrie OT ; les bancs d'essai portent sur du texte de renseignement en anglais, et la contamination interdit de les réutiliser tels quels \\
+\textbf{QR2} & Le RAG ancre et cite, mais un voisin n'est pas une définition, le résultat n'est pas reproductible, et cinq textes suffisent à 90\,\% de réussite d'attaque \cite{poisonedrag} & Pas de comparaison contrôlée RAG vs accès déterministe sur le \emph{mapping} ATT\&CK, à modèles et journaux identiques \\
+\textbf{QR3} & Un modèle outillé de 6,7 G bat GPT-3 175 G \cite{toolformer} ; le MCP standardise l'accès déterministe sous gouvernance neutre \cite{mcpintro,aaif} ; au-delà d'une centaine d'outils exposés la sélection s'effondre (13,6\,\% contre 43,1\,\% avec pré-sélection \cite{ragmcp}), et l'appel à la demande économise 98\,\% des jetons \cite{mcpzero} & Les bancs d'essai MCP portent sur des tâches génériques \cite{mcpuniverse} ; la supériorité théorique de l'accès déterministe (justesse, reproductibilité, latence) n'est pas mesurée sur le \emph{mapping} ATT\&CK en conditions de SOC \\
+\textbf{QR4} & Le MCP déplace le risque du texte à l'action ; les serveurs réels sont vulnérables (jusqu'à 72,8\,\% de réussite \cite{mcptox}, 5,5\,\% empoisonnés \cite{hasan}) ; la spécification laisse la lecture seule et la journalisation à l'implémenteur & Le « serveur MCP sûr par conception pour un SOC régulé » et son audit automatisé ancré dans ATLAS restent peu traités, a fortiori sous le cadre de la LPCE \\
+\end{longtable}
+\legendetableau{Ce que la revue établit et ce qu'elle laisse ouvert, par question de revue.}{tab:synthese-revue}
+
+Trois fils se dégagent. \textbf{D'abord}, un motif transversal : à chaque axe, les modèles les plus capables sont les plus exposés --- au code non sûr (CyberSecEval), à l'excès de confiance mémorisée (\emph{inverse scaling}), à l'empoisonnement d'outil (MCPTox) --- parce que l'attaque exploite l'aptitude même qui fait leur valeur, suivre finement une instruction. La réponse n'est donc pas un meilleur modèle mais un meilleur \emph{cadre} : ancrer, borner, journaliser. \textbf{Ensuite}, l'arc de l'ancrage ne supprime pas la surface d'attaque, il la déplace --- du modèle vers la base (RAG), puis de la base vers le serveur (MCP) --- et chaque déplacement rend la surface plus petite et plus auditable, à condition que le serveur soit conçu pour l'être. \textbf{Enfin}, la littérature savante sur le MCP a moins de deux ans : elle mesure abondamment sa vulnérabilité mais très peu son apport en conditions opérationnelles. C'est dans cet écart que se situe l'essai ; la manière dont il répond à chacune de ces lacunes est exposée dans sa conclusion, à la lumière des travaux réalisés.
+
+\section{Méthodologie d'évaluation}\label{sec:methodo}
+Le projet intègre le référentiel MITRE ATT\&CK dans un écosystème MCP. La mission confiée au modèle est de produire des moyens de mitigation, et la qualité d'une mitigation dépend directement de la justesse du mapping qui la précède. On évalue donc les modèles sur cette tâche, aux trois niveaux du référentiel, dans deux environnements : les technologies de l'information (TI) et les technologies opérationnelles (TO).
+
+Les travaux les plus proches --- RAM, CTIBench --- ont été publiés entre 2024 et le début de 2026 et portent sur des modèles aujourd'hui dépassés : GPT-4-Turbo, Llama 3, Mistral 7B, IBM Granite. Ils traitent par ailleurs de tâches voisines mais distinctes, comme le mapping de vulnérabilités CVE, la génération de règles SIEM ou la conversion de rapports de renseignement. Aucun n'évalue la matrice ATT\&CK for ICS, ni la version v19.2 du référentiel. C'est cette absence d'évaluation actualisée et alignée sur notre cas d'usage qui motive la campagne.
+
+\FloatBarrier
+\subsection{Construction du corpus}\label{sec:meth-corpus}
+
+\subsubsection{Pourquoi générer les journaux}\label{sec:1-1-2}
+Les journaux sont produits en laboratoire plutôt que repris d'un jeu public. La raison est la contamination : si un jeu de données est public, le modèle a pu voir pendant son entraînement les journaux \emph{et} leurs identifiants MITRE. Il répondrait alors de mémoire et non par raisonnement, et la campagne mesurerait sa mémorisation. En générant nous-mêmes les journaux, on garantit que leur forme exacte n'a jamais été indexée.
+
+L'évaluation porte donc sur la capacité du modèle à mapper correctement des activités malveillantes \textbf{connues}, et non sur sa capacité à distinguer le légitime du malveillant.
+
+\subsubsection{Génération}\label{sec:1-2-2}
+Le laboratoire virtuel couvre deux zones. La zone TI comprend un contrôleur de domaine Windows Server DC01 instrumenté avec Sysmon, et un serveur Linux web01 instrumenté avec auditd. La zone TO est un réseau ICS composé d'une simulation de procédé GRFICS v3 et d'une sonde réseau Zeek. La zone TO est donc simulée, mais le trafic Modbus produit est conforme au protocole réel : c'est la représentativité que la tâche exige, sans les contraintes d'accès d'un réseau de production.
+
+Des attaques unitaires ciblent chaque zone via un harnais qui produit les traces. Les résultats sont capturés dans les journaux Sysmon et Security pour DC01, dans audit.log pour web01, dans les journaux Zeek (Modbus) et le journal d'audit de l'hôte pour la zone TO. Un script découpe ensuite ces journaux en échantillons et construit la vérité de terrain avec des identifiants validés contre la version courante du référentiel.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-5-telemetrie}
+\caption{Génération de la télémétrie TO et TI.}\label{fig:telemetrie}
+\end{figure}
+
+\subsubsection{Un triplet par échantillon}\label{sec:1-3}
+Chaque échantillon correspond à une seule action offensive et porte exactement un triplet attendu : une tactique, une technique, et une sous-technique lorsque la technique en possède une, la mention « aucune » sinon.
+
+Une technique peut être rattachée à plusieurs tactiques dans le référentiel --- T1053 relève à la fois d'Execution, de Persistence et de Privilege Escalation. Dans ce cas, on retient la seule tactique correspondant à l'intention réelle du scénario exécuté. L'attaque ayant été lancée par nous, cette intention est connue sans ambiguïté.
+
+\subsubsection{Composition du corpus}\label{sec:1-4}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.0962}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2084}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1389}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1229}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1816}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2520}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Zone}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Source}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Matrice}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Nombre}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Avec sous-tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Techniques couvertes}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+TI & DC01 --- Sysmon + Security & Enterprise & 12 & 7 & 11 \\
+TI & web01 --- audit.log & Enterprise & 16 & 14 & 14 \\
+TO & Sonde Zeek --- Modbus & ICS & 11 & 1 & 11 \\
+TO & Hôte PLC --- audit & ICS & 3 & 0 & 3 \\
+\textbf{Total} & & & \textbf{42} & \textbf{22} & \textbf{36} \\
+\end{longtable}
+\legendetableau{Composition du corpus de la vérité de terrain.}{tab:corpus}
+
+
+La vérité de terrain complète est reproduite ci-dessous, échantillon par échantillon. Elle fixe le triplet attendu à chaque niveau et sert de référence à tous les calculs qui suivent.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.0833}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1111}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2415}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2778}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2863}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Éch.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Mat.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Tactique}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Technique}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sous-technique}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+S000 & ICS & TA0102 --- Discovery & T0846 --- Remote System Discovery & aucune \\
+S001 & ICS & TA0102 --- Discovery & T0888 --- Remote System Information Discovery & aucune \\
+S002 & ICS & TA0100 --- Collection & T0861 --- Point \& Tag Identification & aucune \\
+S003 & ICS & TA0100 --- Collection & T0801 --- Monitor Process State & aucune \\
+S004 & ICS & TA0100 --- Collection & T0802 --- Automated Collection & aucune \\
+S005 & ICS & TA0100 --- Collection & T0868 --- Detect Operating Mode & aucune \\
+S006 & ICS & TA0106 --- Impair Process Control & T0836 --- Modify Parameter & aucune \\
+S007 & ICS & TA0106 --- Impair Process Control & T1692 --- Unauthorized Message & T1692.001 --- Command Message \\
+S008 & ICS & TA0106 --- Impair Process Control & T0806 --- Brute Force I/O & aucune \\
+S009 & ICS & TA0107 --- Inhibit Response Function & T0835 --- Manipulate I/O Image & aucune \\
+S010 & ICS & TA0107 --- Inhibit Response Function & T0814 --- Denial of Service & aucune \\
+S011 & ICS & TA0104 --- Execution & T0807 --- Command-Line Interface & aucune \\
+S012 & ICS & TA0104 --- Execution & T0853 --- Scripting & aucune \\
+S013 & ICS & TA0110 --- Persistence & T0889 --- Modify Program & aucune \\
+S014 & Ent. & TA0002 --- Execution & T1059 --- Command and Scripting Interpreter & T1059.004 --- Unix Shell \\
+S015 & Ent. & TA0002 --- Execution & T1059 --- Command and Scripting Interpreter & T1059.006 --- Python \\
+S016 & Ent. & TA0004 --- Privilege Escalation & T1548 --- Abuse Elevation Control Mechanism & T1548.003 --- Sudo and Sudo Caching \\
+S017 & Ent. & TA0004 --- Privilege Escalation & T1548 --- Abuse Elevation Control Mechanism & T1548.001 --- Setuid and Setgid \\
+S018 & Ent. & TA0003 --- Persistence & T1053 --- Scheduled Task/Job & T1053.003 --- Cron \\
+S019 & Ent. & TA0003 --- Persistence & T1543 --- Create or Modify System Process & T1543.002 --- Systemd Service \\
+S020 & Ent. & TA0003 --- Persistence & T1546 --- Event Triggered Execution & T1546.004 --- Unix Shell Configuration Modification \\
+S021 & Ent. & TA0003 --- Persistence & T1098 --- Account Manipulation & T1098.004 --- SSH Authorized Keys \\
+S022 & Ent. & TA0003 --- Persistence & T1037 --- Boot or Logon Initialization Scripts & T1037.004 --- RC Scripts \\
+S023 & Ent. & TA0006 --- Credential Access & T1003 --- OS Credential Dumping & T1003.008 --- /etc/passwd and /etc/shadow \\
+S024 & Ent. & TA0006 --- Credential Access & T1552 --- Unsecured Credentials & T1552.003 --- Shell History \\
+S025 & Ent. & TA0005 --- Stealth & T1070 --- Indicator Removal & T1070.003 --- Clear Command History \\
+S026 & Ent. & TA0005 --- Stealth & T1140 --- Deobfuscate/Decode Files or Information & aucune \\
+S027 & Ent. & TA0112 --- Defense Impairment & T1685 --- Disable or Modify Tools & T1685.006 --- Clear Linux or Mac System Logs \\
+S028 & Ent. & TA0112 --- Defense Impairment & T1222 --- File and Directory Permissions Modification & T1222.002 --- Linux and Mac Permissions \\
+S029 & Ent. & TA0112 --- Defense Impairment & T1686 --- Disable or Modify System Firewall & aucune \\
+S030 & Ent. & TA0007 --- Discovery & T1033 --- System Owner/User Discovery & aucune \\
+S031 & Ent. & TA0007 --- Discovery & T1082 --- System Information Discovery & aucune \\
+S032 & Ent. & TA0007 --- Discovery & T1057 --- Process Discovery & aucune \\
+S033 & Ent. & TA0007 --- Discovery & T1016 --- System Network Configuration Discovery & aucune \\
+S034 & Ent. & TA0007 --- Discovery & T1087 --- Account Discovery & T1087.001 --- Local Account \\
+S035 & Ent. & TA0002 --- Execution & T1059 --- Command and Scripting Interpreter & T1059.001 --- PowerShell \\
+S036 & Ent. & TA0002 --- Execution & T1059 --- Command and Scripting Interpreter & T1059.003 --- Windows Command Shell \\
+S037 & Ent. & TA0005 --- Stealth & T1027 --- Obfuscated Files or Information & T1027.010 --- Command Obfuscation \\
+S038 & Ent. & TA0003 --- Persistence & T1547 --- Boot or Logon Autostart Execution & T1547.001 --- Registry Run Keys / Startup Folder \\
+S039 & Ent. & TA0003 --- Persistence & T1053 --- Scheduled Task/Job & T1053.005 --- Scheduled Task \\
+S040 & Ent. & TA0003 --- Persistence & T1543 --- Create or Modify System Process & T1543.003 --- Windows Service \\
+S041 & Ent. & TA0112 --- Defense Impairment & T1112 --- Modify Registry & aucune \\
+\end{longtable}
+\legendetableau{Vérité de terrain par échantillon : tactique, technique et sous-technique attendues.}{tab:verite-terrain}
+
+
+\textbf{Contamination d'entraînement.} Les journaux sont rédigés pour la campagne et ne sont publiés nulle part : aucun modèle n'a pu les rencontrer à l'entraînement. Les scores mesurent donc l'analyse des événements, non la mémorisation du corpus.
+
+\subsubsection{Échantillons, exécutions et workflow d'évaluation}\label{sec:1-5}
+Chaque échantillon est soumis trois fois au même modèle. Un modèle de langue ne rend pas nécessairement la même réponse deux fois de suite : répéter l'appel permet de mesurer cette reproductibilité au lieu de la supposer. Un appel au modèle --- un échantillon envoyé, une réponse reçue --- est appelé une \textbf{exécution}. La campagne compte donc \textbf{42 échantillons et 126 exécutions} par modèle.
+
+Ces exécutions sont produites par un workflow n8n, présenté à la figure~\ref{fig:workflow-eval}. Il se lit de gauche à droite, en cinq modules.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-2-workflow-eval}
+\caption{Le workflow d'évaluation n8n de la phase 1 : cinq modules, des 42 échantillons aux fichiers de résultats JSONL. Fonctionnement détaillé en annexe~B.}\label{fig:workflow-eval}
+\end{figure}
+
+\textbf{Préparation.} Le workflow lit les 42 échantillons et dresse la liste des appels à faire : chaque échantillon, trois fois, soit 126 appels pour le modèle évalué.
+
+\textbf{Boucle.} Les appels sont traités un par un, jamais en parallèle. Une courte pause sépare deux appels, pour rester sous les limites de débit imposées par les fournisseurs.
+
+\textbf{Appel du LLM.} L'échantillon est envoyé au modèle avec la même consigne et le même format de réponse imposé pour les dix modèles. Seule la forme technique de la requête change d'un fournisseur à l'autre, car chaque API a ses propres règles.
+
+\textbf{Jugement.} Le workflow extrait de la réponse le triplet tactique, technique et sous-technique, puis lui attribue un statut. Il sépare deux origines d'échec. Si la faute vient du modèle --- réponse hors format, JSON invalide ---, le statut est enregistré tel quel, et l'exécution comptera comme une abstention. Si la faute vient de l'infrastructure --- quota dépassé, délai dépassé, coupure réseau ---, le modèle n'a rien à se reprocher : le workflow attend, puis relance l'appel, jusqu'à cinq tentatives. Une exécution qui échoue encore après ces cinq tentatives est écartée du calcul, et rapportée à part.
+
+\textbf{Écriture.} Chaque exécution devient une ligne du fichier de résultats du modèle, au format JSON : le triplet proposé, le statut, la latence et les jetons consommés. La ligne est ajoutée dès que l'appel est terminé ; une panne en cours de campagne ne fait donc perdre que l'appel en cours. Le fichier contient ainsi une ligne par exécution, et non par échantillon.
+
+Les deux unités ne servent pas aux mêmes mesures. Les taux de diagnostic se comptent en \textbf{exécutions} : un comportement qui se répète sur les trois exécutions d'un même échantillon s'est produit trois fois, et doit compter trois fois. La stabilité se compte en \textbf{échantillons}, puisqu'elle compare les trois exécutions entre elles --- il n'y a rien à compter par exécution lorsque la question porte sur leur ensemble.
+
+Un exemple. Si un modèle s'arrête à la tactique sur deux des trois exécutions d'un même échantillon, le compteur de sous-spécification retient 2, et non 1 : le comportement s'est produit deux fois sur les 126 occasions qu'il avait de se produire. Rapporter ce 2 aux 42 échantillons donnerait un taux trois fois trop élevé.
+
+Une fois les 126 exécutions de chaque modèle enregistrées, les fichiers de résultats sont confiés à un script, \texttt{calculer\_metriques.py}, présenté à la figure~\ref{fig:workflow-metriques}. Le script reçoit deux entrées --- les fichiers de résultats et la vérité de terrain --- et rend deux sorties : un rapport texte, qui se lit directement, et un fichier CSV qui rassemble les tableaux de résultats repris dans ce chapitre. Pour plus d'information, voir l'annexe~B.
+% Lien cliquable à activer une fois l'annexe B rédigée (y placer \label{annexe:B}) :
+% Pour plus d'information, voir l'\hyperref[annexe:B]{annexe~B}.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-2b-workflow-metriques}
+\caption{Du workflow d'évaluation au calcul des métriques : les fichiers de résultats JSONL et la vérité de terrain sont traités par le script \texttt{calculer\_metriques.py}, qui produit un rapport texte et un fichier CSV.}\label{fig:workflow-metriques}
+\end{figure}
+
+L'ensemble des étapes d'étiquetage et de calcul des métriques est réalisé par ce script, suivant la méthode exposée ci-dessous :
+
+\FloatBarrier
+\subsection{Étiquetage des prédictions}\label{sec:meth-etiquetage}
+
+\subsubsection{Les trois niveaux du référentiel}\label{sec:2-1}
+Le cadre MITRE ATT\&CK est hiérarchique : chaque technique appartient à une tactique, et certaines techniques se déclinent en sous-techniques. La figure~\ref{fig:hierarchie} l'illustre avec T1059 et ses variantes.
+
+\begin{figure}[htbp]
+\centering
+\figuretikz{fig-1-6-hierarchie}
+\caption{Hiérarchie à trois niveaux du référentiel, illustrée par la technique T1059.}\label{fig:hierarchie}
+\end{figure}
+
+Une erreur n'a pas la même gravité selon le niveau où elle se produit : confondre deux sous-techniques d'une même technique est une erreur fine, se tromper de tactique est une erreur grossière. La vérité de terrain est donc préparée aux trois niveaux, et chaque niveau est évalué séparément.
+
+Le corpus compte 42 échantillons. Chacun porte un identifiant attendu par niveau. Le modèle rend un identifiant par niveau. On veut savoir à quel point il réussit.
+
+Il n'y a pas une seule façon d'échouer. Le modèle peut donner un mauvais identifiant qui existe. Il peut en inventer un qui n'existe pas. Il peut donner un identifiant révoqué dont le successeur est exactement la bonne réponse. Il peut ne rien donner. Ces quatre échecs ne disent pas la même chose sur le modèle, et un score unique les écraserait.
+
+D'où le principe : \textbf{on classe chaque prédiction dans une catégorie, avant tout calcul}, et les trois niveaux sont étiquetés et mesurés séparément.
+
+\subsubsection{Les cinq catégories}\label{sec:2-2}
+\begin{itemize}
+\item
+  \textbf{VP} --- l'identifiant attendu est prédit.
+\item
+  \textbf{FP} --- un identifiant qui existe, mais pas le bon. Attendu T1059.001, prédit T1547.001. Les FP ne se ressemblent pas tous --- mauvaise matrice, identifiant périmé, scission v19 --- et des compteurs dédiés, décrits plus bas, distinguent ces familles sans changer la case.
+\item
+  \textbf{H} (hallucination) --- un identifiant qui n'existe nulle part. T1059.999. Un identifiant \emph{déprécié} --- retiré du référentiel sans remplaçant officiel --- n'en est pas une : il existe. Il est compté FP et suivi par un compteur dédié ; faute de remplaçant officiel à vérifier, il ne peut pas être crédité O. Ce compteur couvre aussi les identifiants d'anciennes versions ou de matrices absorbées --- PRE-ATT\&CK, ATT\&CK for ICS v8 ---, absents du paquet figé mais attestés par les paquets historiques : eux non plus ne sont pas des inventions.
+\item
+  \textbf{O} (obsolète) --- un identifiant révoqué dont le remplaçant officiel est celui attendu. Prédit T1086, attendu T1059.001. Le raisonnement est juste, le référentiel du modèle date. C'est la seule catégorie dont le traitement change d'une base de calcul à l'autre. Elle n'est détectable qu'aux niveaux technique et sous-technique ; au niveau tactique, le cas est indiscernable et reste compté FP.
+\item
+  \textbf{A} (abstention) --- rien n'est prédit, le champ est vide. Une réponse inexploitable imputable au modèle --- format non respecté, JSON invalide, réponse vide --- devient une abstention aux trois niveaux, avec un compteur dédié ; les F1 sont aussi recalculés hors rejets. Le statut exact du rejet (\emph{format non respecté}, \emph{JSON invalide}) et l'exécution concernée sont conservés dans le fichier de résultats et rapportés nominativement dans l'évaluation.
+\end{itemize}
+
+Deux propriétés comptent. \textbf{Disjointes} : une prédiction reçoit une catégorie, une seule. \textbf{Exhaustives} : toute prédiction en reçoit une. Il en découle, sur les \emph{N} échantillons évalués à un niveau, l'égalité \emph{N = VP + FP + H + O + A}. C'est l'outil de contrôle : si elle ne tombe pas juste, il y a une erreur de comptage.
+
+\textbf{Ce qu'on perdrait sans cette séparation.} En comptant seulement des bonnes et des mauvaises réponses, trois informations disparaîtraient. Le taux d'hallucination, H étant noyé dans les mauvaises --- or un modèle qui invente des identifiants est disqualifié pour un usage opérationnel, quel que soit son score. La base tolérante, O étant noyé de la même façon --- or la résolution des identifiants révoqués est précisément ce que la campagne veut mesurer. Et la distinction entre A et l'erreur : l'abstention renvoie le cas à l'analyste, l'erreur l'oriente vers une cible fausse.
+
+\textbf{Pourquoi FN ne figure pas dans la liste.} Les cinq catégories décrivent ce que le modèle a écrit, et la liste est complète. Le faux négatif désigne autre chose : la réponse attendue n'a pas été retrouvée. Cela se produit dans quatre des cinq catégories --- FP, H, A, et O en base stricte. Ce n'est donc pas une catégorie de plus mais un regroupement qui traverse les autres ; l'ajouter romprait l'exclusivité mutuelle et l'égalité ci-dessus. Les catégories disent ce que le modèle a écrit, les regroupements du tableau~\ref{tab:bases} disent ce que ça vaut.
+
+\subsubsection{Pourquoi le vrai négatif n'est pas comptabilisé}\label{sec:2-3}
+La version figée du référentiel (v19.2) compte 794 techniques. Pour chaque échantillon, le modèle en écarte implicitement 793. En les comptant, l'exactitude atteindrait 99,9\,\% pour tous les modèles, y compris pour un modèle qui se tromperait systématiquement : l'indicateur cesserait de discriminer.
+
+C'est pourquoi la précision et le rappel sont les métriques adaptées ici : \textbf{ni l'une ni l'autre n'utilise le vrai négatif}. Elles sont construites pour les cas où les négatifs écrasent numériquement les positifs.
+
+\subsubsection{Le niveau sous-technique}\label{sec:2-4}
+Les niveaux tactique et technique sont évalués sur les 42 échantillons. Le niveau sous-technique est le seul où le corpus se dédouble : \textbf{22 échantillons} possèdent une sous-technique attendue, \textbf{20 n'en possèdent aucune} --- leur technique est terminale. Le F1 sous-technique est calculé sur les 22, puisque la question posée est : lorsqu'une sous-technique existe, le modèle la retrouve-t-il ? Les 20 autres ne peuvent pas y contribuer, il n'y a rien à retrouver.
+
+Sur les 42, un modèle répondant « aucune » partout sans analyse tomberait juste sur les 20 terminaux et obtiendrait un F1 de 0,476 --- la moitié du score maximal, sans aucune capacité. Ces cas sont triviaux, connus d'avance dès que la technique l'est ; les inclure comprimerait l'échelle vers le haut. Sur 22, ce modèle obtient zéro. La capacité à reconnaître une technique terminale reste mesurée, par le \textbf{taux de sur-spécification}, rapporté sur les 20.
+
+\textbf{« aucune » n'est pas le vide.} Le critère est la forme de la réponse, pas la vérité attendue. « aucune » est une réponse : le modèle affirme que la technique n'a pas de sous-technique. C'est vérifiable, donc faux lorsqu'une sous-technique existait, et compté FP. Le champ vide est une absence de réponse : rien n'est affirmé, c'est une abstention. Confondre les deux fausse deux indicateurs différents --- traiter « aucune » comme une abstention mélange le silence et une prise de position ; traiter le vide comme « aucune » crédite le modèle d'une réponse qu'il n'a pas donnée. La consigne impose donc un champ sous\_technique toujours présent : un identifiant, la chaîne « aucune », ou une chaîne vide.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2350}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2350}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1389}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.3911}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Attendu}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Prédit}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Catégorie}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Lecture}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{4}{@{}l@{}}{%
+\textbf{Les 22 échantillons évalués}} \\
+T1059.001 & T1059.001 & \textbf{VP} & Réponse exacte. \\
+T1059.001 & T1059.003 & \textbf{FP} & Confusion entre variantes. \\
+T1059.001 & « aucune » & \textbf{FP} & Absence affirmée à tort ; compteur dédié. \\
+T1059.001 & champ vide & \textbf{A} & Abstention ; alimente la sous-spécification N2. \\
+T1059.001 & T1086 (révoqué) & \textbf{O} & Successeur officiel = réponse attendue. \\
+T1059.001 & T1059.999 & \textbf{H} & Identifiant inexistant. \\
+\multicolumn{4}{@{}l@{}}{%
+\textbf{Les 20 échantillons terminaux --- hors du F1}} \\
+aucune & « aucune » & \textbf{---} & Comportement attendu. \\
+aucune & champ vide & \textbf{---} & Non compté. \\
+aucune & une sous-technique & \textbf{---} & Sur-spécification ; compteur dédié, sur 20. \\
+aucune & une sous-t. révoquée & \textbf{---} & Sur-spécification ; l'identifiant a existé, ce n'est pas une invention. \\
+\end{longtable}
+\legendetableau{Étiquetage du niveau sous-technique.}{tab:sous-technique}
+
+
+\subsubsection{Attributs de diagnostic}\label{sec:2-5}
+Ces indicateurs ne sont pas des catégories : ils se superposent à la classification et expliquent \emph{comment} le modèle échoue, là où le F1 mesure \emph{combien} il réussit. Ils se comptent en exécutions --- chaque échantillon étant soumis trois fois ---, sauf la stabilité, qui se compte en échantillons.
+
+\begin{itemize}
+\item
+  \textbf{Sous-spécification N1} = exécutions où la tactique est fournie sans technique / exécutions évaluées. Le modèle a compris l'intention, pas le mécanisme.
+\item
+  \textbf{Sous-spécification N2} = exécutions où la technique est correcte et la sous-technique omise / exécutions portant sur un échantillon à sous-technique. Bon mécanisme, granularité insuffisante pour des mitigations précises.
+\item
+  \textbf{Sur-spécification} = exécutions affirmant une sous-technique sur une technique terminale / exécutions portant sur un échantillon terminal. L'inverse du précédent : inventer de la précision.
+\item
+  \textbf{Sous-technique niée à tort} = nombre d'exécutions répondant « aucune » alors qu'une sous-technique existait. Effectif brut, en complément du F1.
+\item
+  \textbf{Mauvaise matrice} = nombre d'identifiants prédits hors de la matrice de l'échantillon, les trois niveaux confondus. Effectif brut.
+\item
+  \textbf{Scission v19} = nombre d'exécutions proposant TA0005 là où TA0112 est attendu. La v19 a scindé la tactique Defense Evasion ; ce compteur mesure l'intégration d'un changement de nomenclature daté et unique, que ni la base tolérante ni la table des révocations ne rattrapent --- TA0005 reste vivant ailleurs, aucun lien officiel ne le relie à TA0112.
+\item
+  \textbf{Stabilité} = échantillons dont toutes les exécutions rendent un triplet identique / échantillons évalués au moins deux fois. Mesure la reproductibilité, indépendamment de la justesse.
+\end{itemize}
+
+\textbf{Cas exclu du calcul.} Un échec imputable à l'infrastructure d'appel --- quota épuisé, requête annulée, délai dépassé, coupure réseau --- ne mesure pas le modèle. Le harnais rejoue l'appel avec attente exponentielle ; toute itération abandonnée malgré les tentatives est marquée (erreur\_infrastructure) puis écartée, son effectif étant rapporté par modèle. Ces itérations ne deviennent jamais des abstentions : l'abstention suppose que le modèle a reçu la question et n'a rien rendu d'exploitable, alors qu'ici il ne l'a jamais reçue. Les deux familles ne se croisent pas --- l'abstention pèse dans FN, l'itération écartée sort de N.
+
+\FloatBarrier
+\subsection{Calcul des métriques}\label{sec:meth-metriques}
+
+\subsubsection{Deux questions, deux populations}\label{sec:3-1}
+La précision et le rappel ne sont pas deux versions du même chiffre. Ils portent sur deux populations.
+
+\begin{itemize}
+\item
+  \textbf{Précision} --- population : les prédictions émises. Question : combien étaient justes ? Dénominateur \emph{VP + FP + H + O}. Les abstentions n'y sont pas, puisque rien n'a été émis.
+\item
+  \textbf{Rappel} --- population : les échantillons évalués. Question : sur combien le modèle a-t-il produit la bonne réponse ? Dénominateur \emph{N}. Les abstentions y sont.
+\end{itemize}
+
+Deux dénominateurs différents, parce que deux questions différentes. Il en découle la \textbf{règle d'appariement} : une prédiction fausse compte comme échec au rappel, au même titre qu'une absence de prédiction. Dans les deux cas, l'échantillon n'a pas été qualifié.
+
+\textbf{Pourquoi cette règle.} Un modèle qui répond aux 42 échantillons et se trompe 36 fois a 6 bonnes réponses : son rappel vaut 6/42, soit 14\,\%. Si seules les abstentions comptaient comme échec, ce modèle n'en aurait aucune et son rappel vaudrait 6/6, soit 100\,\% --- un modèle qui échoue 86\,\% du temps serait crédité d'un rappel parfait. C'est la seule règle qui empêche d'améliorer son rappel en devinant. Une prédiction fausse pénalise donc la précision, parce que le modèle a affirmé du faux, et le rappel, parce que l'échantillon reste non qualifié : ce ne sont pas deux sanctions pour une même faute, mais deux questions auxquelles la réponse est négative.
+
+\subsubsection{Les deux bases}\label{sec:3-2}
+Un mapping juste mais daté ne doit être confondu ni avec une réussite pleine ni avec une erreur ordinaire. La \textbf{base stricte} prend le référentiel courant pour juge : l'obsolète est une erreur, puisqu'un analyste qui le recevrait chercherait une entrée qui n'existe plus. La \textbf{base tolérante} prend le raisonnement pour juge : l'obsolète est crédité, puisque la table de correspondance MITRE atteste que la réponse désignait la bonne réalité. La base stricte fournit les métriques principales ; l'écart entre les deux isole la part des erreurs imputable à la fraîcheur des connaissances.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2179}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2607}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2607}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2606}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Numérateur}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dénom. précision}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Dénom. rappel}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Base stricte} & \emph{VP} & \emph{VP + FP + H + O} & \emph{N} \\
+\textbf{Base tolérante} & \emph{VP + O} & \emph{VP + FP + H + O} & \emph{N} \\
+\end{longtable}
+\legendetableau{Ce qui change d'une base à l'autre.}{tab:bases}
+
+
+Une seule différence entre les deux lignes : \emph{O} passe au numérateur. Les dénominateurs sont identiques --- le modèle n'a pas émis plus ou moins de prédictions, et le corpus n'a pas changé de taille. C'est cette invariance qui rend l'écart entre les deux bases interprétable : il mesure \emph{O}, et rien d'autre.
+
+\textbf{Pourquoi un tableau plutôt qu'une réaffectation.} On écrit souvent, pour passer d'une base à l'autre, des affectations du type « FP devient FP + O ». Le symbole y désigne deux choses dans une même ligne, et la formule qui le réutilise ensuite devient ambiguë : selon la lecture, l'obsolète est compté une fois ou deux, et le résultat change. Ici les catégories ne bougent jamais ; seule la façon de les regrouper change, et chaque symbole garde un sens unique dans tout le document.
+
+\subsubsection{Précision, rappel et F1}\label{sec:3-3}
+\textbf{Précision} stricte = \emph{VP} / (\emph{VP + FP + H + O}) \textbf{Rappel} strict = \emph{VP} / \emph{N}
+
+\textbf{Précision} tolérante = (\emph{VP + O}) / (\emph{VP + FP + H + O}) \textbf{Rappel} tolérant = (\emph{VP + O}) / \emph{N}
+
+\textbf{F1} = 2 $\times$ Précision $\times$ Rappel / (Précision + Rappel), dans chaque base.
+
+\textbf{Le calcul, en français simple.} Le calcul part des cinq cases de l'étiquetage --- VP, FP, H, O, A --- et se refait à chaque niveau : tactique, technique, sous-technique. Les lettres des cases gardent leur sens : le calcul ne fait que les regrouper.
+
+On fixe d'abord, selon la base, ce qui compte comme \emph{réponse juste} et ce qui compte comme \emph{affirmation fausse}. En base stricte, les réponses justes sont les VP, et les affirmations fausses regroupent FP, H et O. En base tolérante, l'obsolète change de camp, puisque son remplaçant officiel est la bonne réponse : les réponses justes regroupent VP et O, les affirmations fausses FP et H. Rien d'autre ne bouge d'une base à l'autre.
+
+Vient ensuite le FN, le faux négatif : les cibles manquées. L'étiquetage ne lui a pas donné de case, pour une raison simple : la bonne réponse manque dans plusieurs cases à la fois --- quand le modèle se trompe, quand il invente, quand il se tait --- et une case FN compterait deux fois les mêmes prédictions. On le reconstruit donc ici, au moment où le calcul en a besoin : les cibles manquées sont les affirmations fausses plus les abstentions. Une prédiction fausse compte donc des deux côtés --- elle affirme une erreur, et elle laisse l'échantillon sans réponse ---, et c'est voulu : deviner ne rapporte jamais.
+
+Les trois formules ferment le calcul, identiques dans les deux bases. La précision mesure la fiabilité des affirmations : réponses justes, divisées par toutes les affirmations émises --- justes et fausses. Le rappel mesure la couverture du corpus : réponses justes, divisées par réponses justes plus cibles manquées ; et comme cette somme vaut N, le rappel est simplement la part des N exécutions résolues. Le F1 est la moyenne harmonique des deux : il ne monte que si la précision et le rappel montent ensemble.
+
+Trois égalités permettent de contrôler n'importe quel tableau de résultats sans refaire l'analyse : réponses justes + cibles manquées = \emph{N} ; cibles manquées = affirmations fausses + \emph{A} ; réponses justes + affirmations fausses = nombre d'affirmations émises, identique dans les deux bases.
+
+\textbf{Une propriété à connaître.} Dans chaque base, précision et rappel coïncident dès que le modèle se prononce sur tous les échantillons : les deux rapports partagent alors le même dénominateur. Seule l'abstention les fait diverger --- elle pèse au rappel, pas à la précision. Le passage en base tolérante déplace les deux indicateurs ensemble, il ne les sépare pas. C'est une conséquence arithmétique du cadre, non un défaut.
+
+\subsubsection{Exemple de vérification}\label{sec:3-4}
+Dix échantillons à un niveau donné : \emph{VP} = 5, \emph{FP} = 2, \emph{H} = 1, \emph{O} = 1, \emph{A} = 1, soit 9 affirmations émises et \emph{N} = 10.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1603}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1282}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1282}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1282}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1517}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1517}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1517}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Justes}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Fausses}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Manquées}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Précision}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Rappel}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Stricte} & 5 & 4 & 5 & 5/9 = 0,556 & 5/10 = 0,500 & 0,526 \\
+\textbf{Tolérante} & 6 & 3 & 4 & 6/9 = 0,667 & 6/10 = 0,600 & 0,632 \\
+\end{longtable}
+\legendetableau{Application numérique dans les deux bases.}{tab:application}
+
+
+Les trois égalités se vérifient : 5 + 5 = 10 et 6 + 4 = 10 ; 5 = 4 + 1 et 4 = 3 + 1 ; 9 affirmations sur les deux lignes. L'écart de F1, 0,632 moins 0,526, mesure ici le coût de la seule prédiction obsolète.
+
+\subsubsection{Indicateurs dérivés}\label{sec:3-5}
+\begin{itemize}
+\item
+  \textbf{Écart d'obsolescence} = F1 tolérant - F1 strict.
+\item
+  \textbf{Taux d'obsolescence} = \emph{O} / affirmations émises, les trois niveaux confondus. Le référentiel interne du modèle est-il à jour ?
+\item
+  \textbf{Taux d'hallucination} = \emph{H} / affirmations émises, les trois niveaux confondus. Le modèle fabrique-t-il des identifiants ?
+\item
+  \textbf{Taux d'abstention} = \emph{A} / \emph{N}, rapporté par niveau. Un modèle peut être précis parce qu'il ne se prononce que lorsqu'il est sûr : ce taux complète la lecture de la précision.
+\item
+  \textbf{Latence} = horodatage de fin - horodatage de début de l'appel réussi ; les pauses du harnais et les attentes de reprise n'en font pas partie. Elle produit une valeur par exécution, soit 126 exécutions (3 exécutions $\times$ 42 échantillons). Les latences sont triées par ordre croissant, \emph{v{[}0{]}} étant la plus rapide. On utilise la convention d'interpolation de NumPy pour calculer le p50 et le p95 : le rang cherché vaut \emph{k = (n - 1) $\times$ q} et, en notant \emph{i} la partie entière de \emph{k}, la valeur est \emph{v{[}i{]} + (v{[}i+1{]} - v{[}i{]}) $\times$ (k - i)}.
+\item
+  \textbf{p50 (médiane)} --- \emph{q = 0,50}, soit \emph{k = 125 $\times$ 0,50 = 62,5} : la valeur se lit à mi-chemin entre la 63e et la 64e latence. La moitié des exécutions sont plus rapides : c'est le temps de traitement courant du modèle.
+\item
+  \textbf{p95} --- \emph{q = 0,95}, soit \emph{k = 125 $\times$ 0,95 = 118,75} : la valeur se lit aux trois quarts entre la 119e et la 120e latence. 95\,\% des exécutions sont plus rapides : c'est le pire cas ordinaire, celui qui dimensionne un usage en exploitation et qu'une moyenne masquerait.
+\item
+  \textbf{Jetons} = jetons d'entrée + jetons de sortie, jetons de raisonnement compris lorsque le fournisseur les facture. Rapportés en moyenne par exécution.
+\item
+  \textbf{Efficacité} = 1000 $\times$ F1 technique strict / jetons moyens par exécution, soit le F1 obtenu par millier de jetons consommés. Le F1 technique est retenu car les mitigations MITRE se rattachent aux techniques.
+\end{itemize}
+
+\subsubsection{Ventilation des résultats}\label{sec:3-6}
+Chaque taux est rapporté avec le dénominateur fixé lors de sa définition --- sections~\ref{sec:2-4} et~\ref{sec:2-5} --- afin qu'aucune proportion ne soit lue sans son effectif. Toutes les métriques sont produites globalement puis ventilées par matrice --- Enterprise, 28 échantillons ; ICS, 14 --- avec leurs effectifs bruts. Une différence entre deux modèles n'est retenue que si elle est nette et constante sur les trois exécutions. Répéter une campagne complète à l'identique fait par ailleurs varier les F1 d'environ $\pm$0,008 : ce grain sert de seuil de lecture, tout écart inférieur relève du bruit. En particulier, deux F1 séparés de moins de ce grain sont rapportés comme un ex æquo de fait, l'ordre des lignes d'un tableau n'étant alors qu'une convention d'affichage ; un rééchantillonnage \emph{bootstrap} des 42 échantillons pourra compléter ce seuil si un départage plus fin devient nécessaire. Enfin, le F1 sous-technique de la matrice ICS, calculé sur trois échantillons seulement, est rapporté pour mémoire sans être interprété.
+
+Ce cadre est la micro-agrégation usuelle en classification multi-classes à étiquette unique. Il est vérifiable par les trois égalités, non ambigu puisque chaque symbole garde un sens unique, et complet puisque les quatre modes d'échec --- confusion, fabrication, obsolescence, abstention --- restent mesurables séparément.
+
+\FloatBarrier
+\subsection{Sélection des modèles}\label{sec:meth-modeles}
+
+\subsubsection{Critères de sélection}\label{sec:4-1}
+Dix modèles sont retenus, issus de six éditeurs. Le choix suit cinq critères, tous liés à ce que la campagne cherche à mesurer.
+
+\begin{itemize}
+\item
+  \textbf{Récence} --- les travaux voisins évaluent des modèles dépassés. On retient la génération courante, seule pertinente pour une recommandation opérationnelle.
+\item
+  \textbf{Deux familles} --- les modèles propriétaires correspondent à ce qu'un exploitant utilise aujourd'hui par API ; les modèles à poids ouverts à ce qu'il pourrait héberger lui-même, question qui se pose dès que des journaux d'infrastructure critique quittent le périmètre.
+\item
+  \textbf{Couverture des éditeurs et des gammes} --- six éditeurs sont représentés, ce qui évite de mesurer une seule lignée d'entraînement. Pour quatre d'entre eux, deux points de gamme sont évalués : un modèle de tête et un modèle plus léger de la même lignée. Comparer deux modèles d'un même éditeur isole l'effet de la taille à entraînement constant, ce qu'une comparaison entre éditeurs ne permet pas.
+\item
+  \textbf{Capacité de raisonnement} --- le mapping n'est pas une reconnaissance de mots-clés mais un raisonnement contextuel. On retient donc des modèles de la classe raisonnement, ce que la revue de littérature justifie.
+\item
+  \textbf{Appel d'outils} --- la phase 2 rejoue la campagne avec le serveur MCP. Les dix modèles doivent donc gérer l'appel d'outils, sans quoi la comparaison avec et sans ancrage serait impossible sur le même panel.
+\end{itemize}
+
+\subsubsection{Les dix modèles retenus}\label{sec:4-2}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2137}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1624}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.4017}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2222}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Éditeur}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Identifiant d'API}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Accès}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{4}{@{}l@{}}{%
+\textbf{Modèles propriétaires}} \\
+Claude Opus 4.8 & Anthropic & claude-opus-4-8 & API Anthropic \\
+Claude Sonnet 5 & Anthropic & claude-sonnet-5 & API Anthropic \\
+GPT-5.6 Sol & OpenAI & gpt-5.6-sol & API OpenAI \\
+GPT-5.6 Luna & OpenAI & gpt-5.6-luna & API OpenAI \\
+Gemini 3.1 Pro & Google & google/gemini-3.1-pro-preview & Vertex AI \\
+Gemini 3.8 Flash & Google & google/gemini-3.8-flash & Vertex AI \\
+\multicolumn{4}{@{}l@{}}{%
+\textbf{Modèles à poids ouverts}} \\
+Kimi K3 & Moonshot AI & kimi-k3 & API Moonshot \\
+DeepSeek V4 Pro & DeepSeek & deepseek-v4-pro & API DeepSeek \\
+DeepSeek V4 Flash & DeepSeek & deepseek-v4-flash & API DeepSeek \\
+Qwen3.8 & Alibaba & qwen3.8-2.4t-a95b & Model Studio \\
+\end{longtable}
+\legendetableau{Modèles évalués, éditeurs et voies d'accès.}{tab:modeles}
+
+
+Les six modèles propriétaires proviennent de trois éditeurs distincts et représentent l'état de l'art accessible par API au moment de la campagne. Les quatre modèles à poids ouverts sont interrogés par \textbf{les API de premier niveau de leurs éditeurs} --- Moonshot AI, DeepSeek, Alibaba Cloud --- et non par une passerelle d'inférence. Ce choix écarte les écarts de quantification et de réglage de service propres aux passerelles : les dix modèles sont servis dans des conditions homogènes, ce qui est la condition d'une comparaison entre familles.
+
+Les identifiants d'API sont ceux transmis par le harnais et sont relevés dans chaque enregistrement de résultat, avec la date de la campagne. Cette trace est nécessaire : les identifiants évoluent, et \emph{gemini-3.1-pro-preview} porte la mention preview, donc peut changer ou disparaître. Le préfixe \emph{google/} des deux modèles Gemini n'appartient pas au modèle : il est imposé par l'endpoint compatible OpenAI de Vertex AI. Un accès par clé AI Studio les désignerait sans préfixe.
+
+\subsubsection{Conditions d'appel}\label{sec:4-3}
+Les conditions sont identiques pour les dix modèles là où les API le permettent : même consigne système, même format de sortie imposé, même plafond de sortie de 32 768 jetons, trois exécutions par échantillon. Le plafond est assez haut pour ne contraindre aucun modèle sur cette tâche ; le champ fin\_raison enregistré à chaque appel permet de le vérifier après coup --- aucun enregistrement ne doit porter la mention de troncature.
+
+\textbf{La température fait exception.} Elle est fixée à 0 lorsque le paramètre est accepté, et laissée à sa valeur par défaut là où les API l'imposent ou l'ignorent : Anthropic et Moonshot n'acceptent plus de température configurable sur leurs modèles à raisonnement, et le schéma OpenAI ne la transmet pas. La valeur effectivement appliquée est enregistrée à chaque appel. La stabilité inter-exécutions se lit donc comme la reproductibilité du modèle dans ses conditions de service réelles, et non comme un test de déterminisme à température nulle.
+
+L'effort de raisonnement est laissé aux valeurs par défaut de chaque fournisseur. Aucune échelle commune n'existe entre éditeurs : forcer un niveau « maximal » partout ne rendrait pas les modèles comparables, cela les déplacerait vers des points arbitraires différents. Les jetons de raisonnement consommés sont en revanche relevés et rapportés, ce qui rend l'écart mesurable au lieu d'être supposé.
+
+\subsubsection{Limites assumées}\label{sec:4-4}
+\begin{itemize}
+\item
+  La température n'est pas contrôlable sur tous les modèles : cinq des dix --- les deux Claude, les deux GPT et Kimi K3 --- sont évalués à la valeur par défaut de leur fournisseur.
+\item
+  L'effort de raisonnement n'est pas égalisé entre éditeurs, faute d'échelle commune.
+\item
+  La dégradation en contexte long n'est pas mesurée : avec 42 échantillons par modèle, les effectifs par tranche de longueur seraient trop faibles pour conclure.
+\item
+  Deux éditeurs sur six ne sont représentés que par un modèle --- Moonshot et Alibaba : l'effet de gamme n'y est pas mesurable.
+\end{itemize}
+
+\FloatBarrier
+\subsection{Évaluation et synthèse}\label{sec:meth-evaluation}
+
+Les tableaux qui suivent comparent les modèles sur deux axes : la qualité du mapping et l'actualité des connaissances d'abord, rapportées dans les deux bases de calcul ; la fiabilité, le temps et le coût ensuite. Aucun critère n'est éliminatoire : la mauvaise matrice et l'hallucination, les deux fautes les plus graves, sont placées en tête de colonnes comme des réserves qui se lisent avec le F1, sans retrancher aucun modèle des tableaux. Les lignes sont ordonnées par F1 technique ; deux F1 séparés de moins de $\pm$0,008 --- l'écart observé en rejouant deux fois la même campagne --- sont un ex æquo de fait ; et le même ordre de colonnes est appliqué aux deux bases, si bien que l'écart entre les deux tableaux mesure une seule chose : l'actualité du référentiel interne de chaque modèle.
+
+\subsubsection{Étiquetage des prédictions}\label{sec:5-1}
+
+Rappelons d'abord pourquoi cette évaluation classe chaque réponse dans une catégorie, au lieu de compter seulement les bonnes et les mauvaises réponses. Le corpus compte 42 échantillons ; chacun est soumis trois fois au même modèle, soit 126 exécutions par modèle. Si l'on se contentait de deux cases --- bonne réponse, mauvaise réponse ---, les identifiants inventés seraient noyés parmi les mauvaises réponses : le taux d'hallucination disparaîtrait du calcul, alors qu'un modèle qui fabrique des identifiants est inutilisable en exploitation, quel que soit son score. Les identifiants obsolètes seraient noyés de la même façon, et la base tolérante ne pourrait plus être calculée. C'est pour cela que chaque réponse est d'abord rangée dans une case ; le tableau~\ref{tab:etiquetage} en donne le résultat, modèle par modèle et niveau par niveau : les cinq catégories --- VP, FP, H, O, A --- et deux sous-comptes inclus dans FP : F, les identifiants d'anciennes versions, et MM, les identifiants pris hors de la matrice de l'échantillon.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2100}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2400}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0784}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0786}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Niveau}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{VP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{FP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{H}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{O}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{A}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Claude Opus 4.8} & Tactique (n = 126) & 74 & 52 & 0 & 0 & 0 & 0 & 0 \\
+& Technique (n = 126) & 71 & 54 & 0 & 0 & 1 & 0 & 0 \\
+& Sous-technique (n = 66) & 42 & 21 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{Claude Sonnet 5} & Tactique (n = 126) & 64 & 60 & 0 & 0 & 0 & 2 & 0 \\
+& Technique (n = 126) & 67 & 54 & 0 & 0 & 3 & 2 & 0 \\
+& Sous-technique (n = 66) & 40 & 22 & 0 & 0 & 3 & 1 & 0 \\
+\textbf{GPT-5.6 Sol} & Tactique (n = 126) & 82 & 44 & 0 & 0 & 0 & 0 & 0 \\
+& Technique (n = 126) & 76 & 48 & 0 & 6 & 2 & 0 & 0 \\
+& Sous-technique (n = 66) & 42 & 21 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{GPT-5.6 Luna} & Tactique (n = 126) & 63 & 49 & 13 & 0 & 0 & 1 & 4 \\
+& Technique (n = 126) & 66 & 57 & 0 & 0 & 2 & 1 & 5 \\
+& Sous-technique (n = 66) & 42 & 21 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{Gemini 3.1 Pro} & Tactique (n = 125) & 70 & 54 & 1 & 0 & 0 & 0 & 0 \\
+& Technique (n = 125) & 60 & 62 & 0 & 3 & 3 & 0 & 1 \\
+& Sous-technique (n = 65) & 42 & 20 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{Gemini 3.8 Flash} & Tactique (n = 125) & 81 & 44 & 0 & 0 & 0 & 0 & 0 \\
+& Technique (n = 125) & 75 & 47 & 0 & 1 & 3 & 0 & 0 \\
+& Sous-technique (n = 66) & 44 & 19 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{Kimi K3} & Tactique (n = 126) & 68 & 57 & 1 & 0 & 0 & 0 & 3 \\
+& Technique (n = 126) & 71 & 53 & 0 & 1 & 2 & 0 & 0 \\
+& Sous-technique (n = 66) & 41 & 22 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{DeepSeek V4 Pro} & Tactique (n = 126) & 81 & 43 & 2 & 0 & 0 & 0 & 4 \\
+& Technique (n = 126) & 72 & 52 & 0 & 1 & 2 & 0 & 1 \\
+& Sous-technique (n = 66) & 44 & 19 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{DeepSeek V4 Flash} & Tactique (n = 126) & 75 & 48 & 3 & 0 & 0 & 0 & 3 \\
+& Technique (n = 126) & 76 & 48 & 0 & 0 & 2 & 0 & 1 \\
+& Sous-technique (n = 66) & 41 & 22 & 0 & 0 & 3 & 0 & 0 \\
+\textbf{Qwen3.8} & Tactique (n = 126) & 62 & 62 & 2 & 1 & 0 & 0 & 6 \\
+& Technique (n = 126) & 72 & 54 & 0 & 4 & 0 & 0 & 1 \\
+& Sous-technique (n = 66) & 42 & 21 & 0 & 0 & 3 & 0 & 0 \\
+\end{longtable}
+\legendetableau{Étiquetage des prédictions des dix modèles. Entre parenthèses, le nombre d'exécutions évaluées au niveau considéré. Chaque exécution reçoit une catégorie et une seule, donc chaque ligne vérifie N = VP + FP + H + O + A. F et MM sont des sous-comptes déjà inclus dans FP, affichés pour lecture. Les effectifs de 125 des deux Gemini correspondent aux deux itérations abandonnées sur quota d'API après cinq tentatives (S015, exécution 2, pour 3.1 Pro ; S013, exécution 3, pour 3.8 Flash) : des pannes du fournisseur, écartées du calcul et jamais comptées comme des abstentions du modèle.}{tab:etiquetage}
+
+\textbf{Hallucinations.} Six modèles ont halluciné --- DeepSeek V4 Flash (3), DeepSeek V4 Pro (2), Gemini 3.1 Pro (1), GPT-5.6 Luna (13), Kimi K3 (1) et Qwen3.8 (2) ---, uniquement au niveau tactique et uniquement sur des journaux industriels : les identifiants fabriqués (TA0113 à TA0119, plus TA0089) prolongent la numérotation des tactiques ICS au-delà de TA0111, la dernière qui existe --- le modèle reconnaît la bonne intention, mais il ne connaît pas la liste ICS et invente un numéro vraisemblable plutôt que de s'abstenir.
+
+\textbf{Erreurs de matrice.} Six modèles ont pris au moins un identifiant dans la mauvaise matrice --- un identifiant Enterprise donné sur un journal industriel, ou l'inverse : Gemini 3.1 Pro (1), Kimi K3 (3), DeepSeek V4 Flash (4), DeepSeek V4 Pro (5), Qwen3.8 (7) et GPT-5.6 Luna (9), soit 29 identifiants au total. Les plus fréquents sont TA0007, TA0002, TA0009 et T1059 --- les équivalents Enterprise, de même nom, des tactiques ou techniques ICS attendues --- ainsi que TA0112, tactique Enterprise proposée sur des cas industriels. Les quatre autres modèles --- Claude Opus 4.8, Claude Sonnet 5, GPT-5.6 Sol et Gemini 3.8 Flash --- n'ont produit ni hallucination ni identifiant hors matrice.
+
+\subsubsection{Qualité du mapping et actualité des connaissances}\label{sec:5-2}
+
+Les tableaux~\ref{tab:classement-strict} et~\ref{tab:classement-tolerant} rapportent les mêmes exécutions dans les deux bases de calcul : la base stricte compte les identifiants obsolètes comme des erreurs, la base tolérante les crédite parce que leur remplaçant officiel est la bonne réponse. Comme annoncé, les lignes sont ordonnées par F1 technique, et aucun critère n'est éliminatoire : la mauvaise matrice et l'hallucination, placées en tête de colonnes, sont des réserves opérationnelles qui se lisent avec le F1.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1180}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1050}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1030}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1030}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Mauv. mat.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Halluc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+GPT-5.6 Sol & 0 & 0,0\,\% & 0,603 & 0,651 & 0,636 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Flash & 4 & 0,9\,\% & 0,603 & 0,595 & 0,621 & 1,6\,\% & 0,0\,\% \\
+Gemini 3.8 Flash & 0 & 0,0\,\% & 0,600 & 0,648 & 0,667 & 1,9\,\% & 0,0\,\% \\
+DeepSeek V4 Pro & 5 & 0,6\,\% & 0,571 & 0,643 & 0,667 & 1,6\,\% & 0,0\,\% \\
+Qwen3.8 & 7 & 0,6\,\% & 0,571 & 0,492 & 0,636 & 0,9\,\% & 0,0\,\% \\
+Claude Opus 4.8 & 0 & 0,0\,\% & 0,563 & 0,587 & 0,636 & 1,3\,\% & 0,0\,\% \\
+Kimi K3 & 3 & 0,3\,\% & 0,563 & 0,540 & 0,621 & 1,6\,\% & 0,0\,\% \\
+Claude Sonnet 5 & 0 & 0,0\,\% & 0,536 & 0,512 & 0,611 & 1,9\,\% & 1,6\,\% \\
+GPT-5.6 Luna & 9 & 4,1\,\% & 0,526 & 0,502 & 0,636 & 1,6\,\% & 0,6\,\% \\
+Gemini 3.1 Pro & 1 & 0,3\,\% & 0,480 & 0,560 & 0,646 & 1,9\,\% & 0,0\,\% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base stricte. Lignes ordonnées par F1 technique ; à F1 technique égal, le F1 tactique départage l'affichage.}{tab:classement-strict}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1180}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1050}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1070}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1030}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1030}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Mauv. mat.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Halluc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Gemini 3.8 Flash & 0 & 0,0\,\% & 0,624 & 0,648 & 0,712 & 1,9\,\% & 0,0\,\% \\
+GPT-5.6 Sol & 0 & 0,0\,\% & 0,619 & 0,651 & 0,682 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Flash & 4 & 0,9\,\% & 0,619 & 0,595 & 0,667 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Pro & 5 & 0,6\,\% & 0,587 & 0,643 & 0,712 & 1,6\,\% & 0,0\,\% \\
+Kimi K3 & 3 & 0,3\,\% & 0,579 & 0,540 & 0,667 & 1,6\,\% & 0,0\,\% \\
+Claude Opus 4.8 & 0 & 0,0\,\% & 0,571 & 0,587 & 0,682 & 1,3\,\% & 0,0\,\% \\
+Qwen3.8 & 7 & 0,6\,\% & 0,571 & 0,492 & 0,682 & 0,9\,\% & 0,0\,\% \\
+Claude Sonnet 5 & 0 & 0,0\,\% & 0,560 & 0,512 & 0,656 & 1,9\,\% & 1,6\,\% \\
+GPT-5.6 Luna & 9 & 4,1\,\% & 0,542 & 0,502 & 0,682 & 1,6\,\% & 0,6\,\% \\
+Gemini 3.1 Pro & 1 & 0,3\,\% & 0,504 & 0,560 & 0,692 & 1,9\,\% & 0,0\,\% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base tolérante. Mêmes exécutions et même ordre de colonnes que le tableau~\ref{tab:classement-strict} ; seule différence, les identifiants obsolètes sont crédités.}{tab:classement-tolerant}
+
+\textbf{1 --- La qualité du mapping.} Le F1 combine la précision --- la part de réponses justes parmi les réponses données --- et le rappel --- la part d'échantillons résolus. Il vaut entre 0 et 1 ; plus il est haut, mieux c'est. Au niveau technique, celui qui compte le plus puisque les mitigations MITRE s'y rattachent, trois modèles se détachent en base stricte : GPT-5.6 Sol et DeepSeek V4 Flash à 0,603, Gemini 3.8 Flash à 0,600. L'écart entre eux, 0,003, est plus petit que $\pm$0,008, l'écart observé en rejouant deux fois la même campagne : ces trois modèles sont donc ex æquo de fait. En base tolérante, Gemini 3.8 Flash passe en tête (0,624) devant Sol et DeepSeek V4 Flash (0,619) --- l'écart, 0,005, reste sous le grain : ex æquo de fait là aussi. Au niveau tactique, Sol (0,651), Gemini 3.8 Flash (0,648) et DeepSeek V4 Pro (0,643) se tiennent dans le même mouchoir. Au niveau sous-technique, les dix modèles se tiennent entre 0,611 et 0,667 en base stricte : c'est le niveau où ils se distinguent le moins ; en base tolérante, Gemini 3.8 Flash et DeepSeek V4 Pro atteignent tous deux 0,712. Enfin, deux modèles ont eu des réponses rejetées, comptées comme abstentions : deux JSON invalides pour Claude Sonnet 5 --- des guillemets non échappés dans l'extrait de journal cité ---, et un format non respecté pour GPT-5.6 Luna, qui a rendu « TA???? » à la place d'un identifiant de tactique. Recalculés hors rejets, leurs F1 techniques montent légèrement --- Sonnet 0,540 en base stricte et 0,565 en tolérante, Luna 0,528 et 0,544 --- sans changer l'ordre général.
+
+\textbf{2 --- Le taux d'hallucination et les fausses matrices.} Quatre modèles n'inventent jamais d'identifiant : GPT-5.6 Sol, Claude Opus 4.8, Claude Sonnet 5 et Gemini 3.8 Flash, tous à 0,0\,\%. Viennent ensuite Kimi K3 et Gemini 3.1 Pro (0,3\,\%), DeepSeek V4 Pro et Qwen3.8 (0,6\,\%), DeepSeek V4 Flash (0,9\,\%), puis GPT-5.6 Luna (4,1\,\%), qui concentre à lui seul treize des vingt-deux identifiants fabriqués du panel. Côté fausses matrices, les mêmes quatre modèles sont à zéro, et les six autres vont de un identifiant (Gemini 3.1 Pro) à neuf (GPT-5.6 Luna). Que la liste des modèles propres soit identique sur les deux fautes n'est pas un hasard : les deux mesurent la même compétence --- situer l'univers, Enterprise ou ICS, avant de nommer --- l'une échouant vers un identifiant qui existe ailleurs, l'autre vers un identifiant qui n'existe nulle part.
+
+\textbf{3 --- La stabilité des réponses.} La stabilité mesure la part des 42 échantillons pour lesquels le modèle a rendu exactement le même triplet --- tactique, technique, sous-technique --- à ses trois exécutions. Gemini 3.1 Pro est le plus constant (88,1\,\%), suivi de Gemini 3.8 Flash (81,0\,\%), Claude Opus 4.8 (76,2\,\%), Claude Sonnet 5 (66,7\,\%), GPT-5.6 Sol (64,3\,\%), Kimi K3 (59,5\,\%), Qwen3.8 (57,1\,\%), GPT-5.6 Luna (54,8\,\%), DeepSeek V4 Flash (52,4\,\%) et DeepSeek V4 Pro (42,9\,\%). La stabilité ne mesure pas la justesse : Gemini 3.1 Pro, le plus stable, a aussi le F1 technique le plus bas --- il se trompe de façon très reproductible --- et GPT-5.6 Sol, en tête de la qualité en base stricte, n'est stable qu'à 64,3\,\% : ses bons scores sont une moyenne de réponses qui se contredisent d'une exécution à l'autre, or en exploitation on ne relance pas trois fois.
+
+\subsubsection{Temps de réponse et coût}\label{sec:5-3}
+
+Le tableau~\ref{tab:temps-cout} rapporte, pour chaque modèle, quatre mesures simples. Le \textbf{p50} est le temps de réponse médian d'un appel réussi, en millisecondes : la moitié des appels sont plus rapides. Le \textbf{p95} est le temps sous lequel 95\,\% des appels aboutissent : c'est le pire cas ordinaire, celui qu'une moyenne cacherait. Les \textbf{jetons} sont l'unité de texte que les fournisseurs facturent ; la colonne donne la moyenne consommée par exécution, réflexion interne du modèle comprise. L'\textbf{efficacité} rapporte le F1 technique strict au coût : c'est le F1 obtenu par millier de jetons consommés. L'\textbf{argent}, enfin, est ce que la campagne complète --- 126 exécutions --- a réellement coûté, chaque composante étant facturée à son tarif du 16 septembre 2026. Les lignes sont ordonnées du modèle le plus rapide au plus lent en médiane.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2700}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1460}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1460}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1460}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1460}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1460}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p50 (ms)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p95 (ms)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Jetons}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Effic.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Argent}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+DeepSeek V4 Flash & 3 407 & 19 812 & 5 594 & 0,108 & 0,12\,\$ \\
+Claude Opus 4.8 & 4 282 & 6 050 & 6 572 & 0,086 & 4,63\,\$ \\
+Claude Sonnet 5 & 4 291 & 10 994 & 6 740 & 0,080 & 2,06\,\$ \\
+GPT-5.6 Luna & 4 626 & 28 758 & 5 004 & 0,105 & 0,22\,\$ \\
+GPT-5.6 Sol & 6 086 & 24 145 & 4 649 & 0,130 & 3,09\,\$ \\
+Gemini 3.8 Flash & 10 664 & 44 482 & 7 566 & 0,079 & 1,36\,\$ \\
+Gemini 3.1 Pro & 18 532 & 103 824 & 9 023 & 0,053 & 6,23\,\$ \\
+Kimi K3 & 24 034 & 202 504 & 6 027 & 0,094 & 4,76\,\$ \\
+DeepSeek V4 Pro & 40 724 & 151 756 & 7 941 & 0,072 & 0,62\,\$ \\
+Qwen3.8 & 82 854 & 269 617 & 9 641 & 0,059 & 4,49\,\$ \\
+\end{longtable}
+\legendetableau{Temps de réponse et coût, par modèle. p50 et p95 : latence médiane et 95\up{e} centile de l'appel réussi. Jetons : moyenne par exécution, raisonnement compris. Effic. : F1 technique strict par millier de jetons. Argent : coût réel des 126 exécutions aux tarifs du 16 septembre 2026 (tarifs.json) ; le tarif de GPT-5.6 Sol est promotionnel, et celui de Gemini 3.8 Flash double au 1\up{er} janvier 2027.}{tab:temps-cout}
+
+\textbf{Le temps.} Trois modèles répondent en moins de cinq secondes en médiane : DeepSeek V4 Flash (3,4~s), Claude Opus 4.8 et Claude Sonnet 5 (4,3~s). Mais la médiane ne dit pas tout : le p95 sépare les modèles prévisibles des modèles erratiques. Claude Opus 4.8 est le seul dont le pire cas ordinaire reste proche du cas courant --- 6,1~s, soit 1,4 fois sa médiane, le plus bas des dix --- quand DeepSeek V4 Flash monte à 19,8~s, Gemini 3.8 Flash à 44,5~s et Qwen3.8 à 270~s. Dans un centre opérationnel qui traite des milliers d'alertes, ce p95 est le temps que l'analyste attend vraiment les mauvais jours.
+
+\textbf{Le coût.} Les jetons ne sont pas la dépense, ils n'en sont que l'unité : chaque fournisseur fixe son tarif, et seul le montant facturé se paie. Le classement en argent ne suit donc ni les jetons ni le temps : GPT-5.6 Sol, le plus sobre en jetons, est le troisième plus cher des dix (3,09\,\$), et Gemini 3.8 Flash, 63\,\% plus gourmand que lui, coûte deux fois moins (1,36\,\$). Les moins chers sont DeepSeek V4 Flash (0,12\,\$), GPT-5.6 Luna (0,22\,\$) et DeepSeek V4 Pro (0,62\,\$) ; les plus chers, Gemini 3.1 Pro (6,23\,\$), Kimi K3 (4,76\,\$) et Claude Opus 4.8 (4,63\,\$). L'écart de consommation entre modèles vient surtout des jetons de raisonnement --- la réflexion interne, facturée comme de la sortie sans être restituée --- et c'est aussi lui qui creuse les latences. En efficacité, GPT-5.6 Sol domine nettement (0,130), devant DeepSeek V4 Flash (0,108) et GPT-5.6 Luna (0,105).
+
+\textbf{Classement des modèles.} Aucun modèle ne gagne partout, alors résumons axe par axe, simplement. La meilleure qualité de mapping : GPT-5.6 Sol, DeepSeek V4 Flash et Gemini 3.8 Flash, ex æquo de fait en base stricte, Gemini 3.8 Flash en tête en base tolérante. Les seuls sans aucune hallucination ni erreur de matrice : Claude Opus 4.8, Claude Sonnet 5, GPT-5.6 Sol et Gemini 3.8 Flash. Les plus stables : Gemini 3.1 Pro, Gemini 3.8 Flash et Claude Opus 4.8. Les plus rapides et les plus prévisibles : DeepSeek V4 Flash en médiane, Claude Opus 4.8 au p95. Les moins chers : DeepSeek V4 Flash, GPT-5.6 Luna et DeepSeek V4 Pro. Le plus efficace : GPT-5.6 Sol. Deux modèles reviennent le plus souvent dans ces podiums : Gemini 3.8 Flash --- qualité, propreté, stabilité, prix contenu, mais un p95 de 44,5~s --- et Claude Opus 4.8 --- propreté, stabilité, temps prévisible, mais un F1 technique à 0,040 de la tête et le troisième prix le plus élevé. Pour la phase 2, qui rejoue la même campagne avec le serveur MCP, il faut un instrument : un modèle qui ne fabrique rien, qui rend des réponses reproductibles, dont le temps ne dérive pas quand le contexte s'alourdit d'appels d'outils, et qui laisse une marge visible à combler --- son F1 technique tombe de 0,714 sur la matrice Enterprise à 0,262 sur la matrice ICS. \textbf{Claude Opus 4.8 est retenu} ; les tableaux de cette section constituent sa ligne de base sans serveur, celle contre laquelle l'apport de l'ancrage sera mesuré.
+
+%% TODO : conclusion du chapitre (retour sur QR1--QR4 et transition vers
+%% le chapitre 2), à rédiger.
+
+% =====================================================================
+% ANCIENNE RÉDACTION (campagne recalculée le 17/09 avec le script
+% corrigé ; mêmes effectifs et F1). Conservée ci-dessous, désactivée par
+% iffalse/fi, comme référence pour les sections restantes — fiabilité,
+% temps de traitement, coût, choix du modèle — jusqu'à leur réécriture.
+% =====================================================================
+\iffalse
+L'évaluation part de l'étiquetage brut, avant toute agrégation. Le tableau~\ref{tab:etiquetage} rapporte, modèle par modèle et niveau par niveau, les effectifs des catégories définies en section~\ref{sec:2-2} --- VP, FP, FN dont abstentions (Ab), identifiants obsolètes (OBS) et hallucinations (H) --- auxquels s'ajoute le compteur de mauvaise matrice (MM) de la section~\ref{sec:2-5}, c'est-à-dire les identifiants pris hors de la matrice de l'échantillon.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2032}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2506}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0756}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0756}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0756}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0767}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0655}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0824}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Niveau}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{VP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{FP}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{FN}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{dont Ab}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{OBS}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{H}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{MM}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Claude Opus 4.8} & Tactique (n = 126) & 74 & 52 & 52 & 0 & 0 & 0 & 0 \\
+& Technique (n = 126) & 71 & 55 & 55 & 0 & 1 & 0 & 0 \\
+& Sous-technique (n = 66) & 42 & 24 & 24 & 0 & 3 & 0 & 0 \\
+\textbf{Claude Sonnet 5} & Tactique (n = 126) & 64 & 60 & 62 & 2 & 0 & 0 & 0 \\
+& Technique (n = 126) & 67 & 57 & 59 & 2 & 3 & 0 & 0 \\
+& Sous-technique (n = 66) & 40 & 25 & 26 & 1 & 3 & 0 & 0 \\
+\textbf{GPT-5.6 Sol} & Tactique (n = 126) & 82 & 44 & 44 & 0 & 0 & 0 & 0 \\
+& Technique (n = 126) & 76 & 50 & 50 & 0 & 2 & 0 & 0 \\
+& Sous-technique (n = 66) & 42 & 24 & 24 & 0 & 3 & 0 & 0 \\
+\textbf{GPT-5.6 Luna} & Tactique (n = 126) & 63 & 62 & 63 & 1 & 0 & 13 & 4 \\
+& Technique (n = 126) & 66 & 59 & 60 & 1 & 2 & 0 & 5 \\
+& Sous-technique (n = 66) & 42 & 24 & 24 & 0 & 3 & 0 & 0 \\
+\textbf{Gemini 3.1 Pro} & Tactique (n = 125) & 70 & 55 & 55 & 0 & 0 & 1 & 0 \\
+& Technique (n = 125) & 60 & 65 & 65 & 0 & 3 & 0 & 1 \\
+& Sous-technique (n = 65) & 42 & 23 & 23 & 0 & 3 & 0 & 0 \\
+\textbf{Gemini 3.8 Flash} & Tactique (n = 125) & 81 & 44 & 44 & 0 & 0 & 0 & 0 \\
+& Technique (n = 125) & 75 & 50 & 50 & 0 & 3 & 0 & 0 \\
+& Sous-technique (n = 66) & 44 & 22 & 22 & 0 & 3 & 0 & 0 \\
+\textbf{Kimi K3} & Tactique (n = 126) & 68 & 58 & 58 & 0 & 0 & 1 & 3 \\
+& Technique (n = 126) & 71 & 55 & 55 & 0 & 2 & 0 & 0 \\
+& Sous-technique (n = 66) & 41 & 25 & 25 & 0 & 3 & 0 & 0 \\
+\textbf{DeepSeek V4 Pro} & Tactique (n = 126) & 81 & 45 & 45 & 0 & 0 & 2 & 4 \\
+& Technique (n = 126) & 72 & 54 & 54 & 0 & 2 & 0 & 1 \\
+& Sous-technique (n = 66) & 44 & 22 & 22 & 0 & 3 & 0 & 0 \\
+\textbf{DeepSeek V4 Flash} & Tactique (n = 126) & 75 & 51 & 51 & 0 & 0 & 3 & 3 \\
+& Technique (n = 126) & 76 & 50 & 50 & 0 & 2 & 0 & 1 \\
+& Sous-technique (n = 66) & 41 & 25 & 25 & 0 & 3 & 0 & 0 \\
+\textbf{Qwen3.8} & Tactique (n = 126) & 62 & 64 & 64 & 0 & 0 & 2 & 6 \\
+& Technique (n = 126) & 72 & 54 & 54 & 0 & 0 & 0 & 1 \\
+& Sous-technique (n = 66) & 42 & 24 & 24 & 0 & 3 & 0 & 0 \\
+\end{longtable}
+\legendetableau{Étiquetage des prédictions des dix modèles. Entre parenthèses, le nombre d'exécutions évaluées au niveau considéré. FP est la valeur de la base stricte : elle comprend les colonnes OBS et H, reportées à part comme sous-comptes, ainsi que les identifiants périmés --- dépréciés ou d'anciennes versions, tel le TA0024 de Qwen3.8 --- non détaillés ici ; FN = FP + dont Ab. Les effectifs de 125 des deux Gemini correspondent aux deux itérations abandonnées sur quota d'API après cinq tentatives (S015, exécution 2, pour 3.1 Pro ; S013, exécution 3, pour 3.8 Flash), écartées et rapportées conformément à la section~\ref{sec:meth-etiquetage}.}{tab:etiquetage}
+
+
+Les hallucinations n'apparaissent qu'au niveau tactique, et sur six modèles ; GPT-5.6 Luna en concentre treize à lui seul. Ces six modèles sont exactement ceux qui se trompent de matrice : les deux Claude, GPT-5.6 Sol et Gemini 3.8 Flash n'ont aucun identifiant fabriqué ni hors matrice. L'abstention reste marginale, limitée à Claude Sonnet 5 et GPT-5.6 Luna. Les identifiants obsolètes, indétectables au niveau tactique, se concentrent au niveau sous-technique, où neuf modèles sur dix en produisent exactement trois. À ce même niveau, les dix modèles se tiennent entre 40 et 44 bonnes réponses sur 66 : c'est celui où ils se distinguent le moins.
+
+\textbf{Les hallucinations sont un problème d'homonymie entre matrices.} Les vingt-deux identifiants fabriqués du panel sont tous des tactiques, et tous sur des échantillons ICS. Un vingt-troisième cas, la tactique TA0024 proposée par Qwen3.8, n'en est pas un : l'identifiant provient de PRE-ATT\&CK, matrice absorbée par Enterprise en 2020, et rejoint le compteur des identifiants périmés (section~\ref{sec:2-2}), ramenant son taux d'hallucination à 0,6\,\%. Ils ne relèvent pas d'une invention arbitraire mais d'un défaut de repérage entre les deux matrices, dont l'homonymie est la cause. Neuf tactiques portent en effet un nom identique de part et d'autre : Collection (TA0009 / TA0100), Command and Control (TA0011 / TA0101), Discovery (TA0007 / TA0102), Execution (TA0002 / TA0104), Impact (TA0040 / TA0105), Initial Access (TA0001 / TA0108), Lateral Movement (TA0008 / TA0109), Persistence (TA0003 / TA0110) et Privilege Escalation (TA0004 / TA0111). Le modèle reconnaît l'intention, mais doit encore choisir l'univers --- et c'est là qu'il échoue, de deux façons : soit il donne l'identifiant Enterprise homonyme, soit il prolonge la numérotation ICS au-delà de TA0111, dernière tactique réelle, produisant TA0113 à TA0119. Au niveau technique, la même homonymie joue --- T1046 (Network Service Discovery, Enterprise) répondu pour T0846 (Network Service Scanning, ICS), T1059 pour T0853, l'interpréteur de commandes d'Enterprise contre le Scripting industriel --- et six occurrences répondent TA0112, la tactique la plus récente d'Enterprise, sur des cas industriels : la connaissance est à jour, la discipline de matrice ne suit pas. L'hallucination, elle, n'est pas un délire mais une interpolation : la liste des tactiques ICS est courte et rare dans les corpus d'entraînement ; le modèle reconnaît le concept, sait qu'il lui faut un numéro de la gamme ICS, et en fabrique un plausible --- TA0115 sept fois chez GPT-5.6 Luna --- plutôt que de s'abstenir. Le contraste le confirme : au niveau technique, zéro invention sur tout le panel, les faux identifiants techniques étant tous des connaissances périmées, jamais des fabrications.
+
+Un score unique masquerait les compromis : un modèle rapide peut être bavard, un modèle précis peut s'abstenir souvent, un modèle exact peut s'arrêter trop tôt dans la hiérarchie.
+
+Les modèles LLM seront comparés entre eux sur ces différents axes :
+
+\begin{itemize}
+\item
+  \textbf{Qualité du mapping et actualité des connaissances} --- rapportée en deux bases, stricte et tolérante, et ordonnée par gravité décroissante de la faute : le mauvais choix de matrice, le taux d'hallucination, le F1 par niveau --- technique, tactique, sous-technique ---, le taux d'obsolescence, puis le taux d'abstention.
+\item
+  \textbf{Fiabilité, temps de traitement et coût} --- ordonnée dans cet ordre : la stabilité, la latence médiane, le coût en jetons, puis l'efficacité.
+\end{itemize}
+
+\textbf{Comment le premier axe est classé.} L'ordre des critères suit la gravité de la faute, et non sa fréquence. Le mauvais choix de matrice vient en tête : un identifiant Enterprise proposé sur un journal ICS --- ou l'inverse --- ne désigne pas seulement une mauvaise technique, il désigne un mauvais univers, et la mitigation qui en découle est inapplicable au système observé. Il est compté en effectif brut, les trois niveaux confondus, parce qu'un seul de ces identifiants suffit à rendre la réponse inutilisable. Vient ensuite le taux d'hallucination : un identifiant fabriqué oriente l'analyste vers une entrée qui n'existe pas, et un modèle qui en produit est écarté d'un usage opérationnel quel que soit son F1. Le F1 ne départage donc que les modèles ayant passé ces deux filtres ; il est lu niveau par niveau, la technique d'abord --- les mitigations MITRE s'y rattachent ---, puis la tactique, puis la sous-technique. Le taux d'obsolescence et le taux d'abstention ne servent qu'à trancher les égalités restantes.
+
+Le tri est lexicographique : chaque critère ne départage que les égalités laissées par le précédent, et aucune grandeur composite n'est fabriquée --- chaque colonne du tableau reste une métrique définie en section~\ref{sec:meth-metriques}. Le même ordre est appliqué aux deux bases, de sorte que la seule différence entre les tableaux~\ref{tab:classement-strict} et~\ref{tab:classement-tolerant} soit le traitement des identifiants obsolètes : comptés comme des erreurs en base stricte, crédités en base tolérante. L'écart entre les deux mesure l'actualité des connaissances du modèle, et rien d'autre.
+
+\textbf{Comment le second axe est classé.} La stabilité vient en premier : un modèle qui ne rend pas deux fois la même réponse au même journal n'est pas exploitable dans un centre opérationnel, quelle que soit sa vitesse. La latence médiane (p50) suit, comme temps de traitement courant ; le 95e centile est rapporté à titre de pire cas ordinaire mais n'entre pas dans le tri, un seul appel lent ne devant pas déclasser un modèle par ailleurs régulier. Le coût vient ensuite, mesuré par les jetons moyens par exécution. L'efficacité --- F1 technique strict par millier de jetons --- est placée en dernier parce qu'elle est le seul indicateur de ce tableau à dépendre de la base de calcul : elle passe par l'étiquetage, alors que la stabilité, la latence et les jetons n'en dépendent pas. La sur-spécification ne sert que de départage ultime.
+
+Dans les deux axes, les critères sont donc appliqués l'un après l'autre, dans l'ordre annoncé : un modèle ne peut pas compenser une faute grave par une bonne performance sur un critère plus fin.
+
+\subsubsection{Qualité du mapping et actualité des connaissances}\label{sec:5-1-ancien}
+Les tableaux~\ref{tab:classement-strict} et~\ref{tab:classement-tolerant} appliquent l'ordre de critères annoncé. Ils portent sur les mêmes exécutions et ne diffèrent que par le traitement des identifiants obsolètes ; les deux premiers critères --- mauvaise matrice et hallucination --- ne passent pas par la base de calcul et sont donc identiques dans les deux.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0677}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2257}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1140}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0971}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0959}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Rang}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Mauv. mat.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Halluc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+GPT-5.6 Sol & 0 & 0,0\,\% & 0,603 & 0,651 & 0,636 & 1,6\,\% & 0,0\,\% \\
+Gemini 3.8 Flash & 0 & 0,0\,\% & 0,600 & 0,648 & 0,667 & 1,9\,\% & 0,0\,\% \\
+Claude Opus 4.8 & 0 & 0,0\,\% & 0,563 & 0,587 & 0,636 & 1,3\,\% & 0,0\,\% \\
+Claude Sonnet 5 & 0 & 0,0\,\% & 0,536 & 0,512 & 0,611 & 1,9\,\% & 1,6\,\% \\
+Gemini 3.1 Pro & 1 & 0,3\,\% & 0,480 & 0,560 & 0,646 & 1,9\,\% & 0,0\,\% \\
+Kimi K3 & 3 & 0,3\,\% & 0,563 & 0,540 & 0,621 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Flash & 4 & 0,9\,\% & 0,603 & 0,595 & 0,621 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Pro & 5 & 0,6\,\% & 0,571 & 0,643 & 0,667 & 1,6\,\% & 0,0\,\% \\
+Qwen3.8 & 7 & 0,6\,\% & 0,571 & 0,492 & 0,636 & 0,9\,\% & 0,0\,\% \\
+GPT-5.6 Luna & 9 & 4,1\,\% & 0,526 & 0,502 & 0,636 & 1,6\,\% & 0,6\,\% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base stricte.}{tab:classement-strict}
+
+
+
+
+\textbf{Un exemple où l'erreur est entièrement imputable à l'homonymie.} L'échantillon S012 --- exécution d'un script sur l'hôte PLC, tactique attendue TA0104 Execution, matrice ICS --- l'illustre sans ambiguïté. Sept modèles répondent TA0104 aux trois exécutions. GPT-5.6 Luna répond TA0002, l'Execution d'Enterprise, aux trois exécutions ; Qwen3.8 fait de même deux fois sur trois. Aucun des deux ne s'est trompé d'intention : ils ont correctement identifié une exécution de code, puis désigné la mauvaise matrice. Trois autres échantillons présentent le même profil --- S000 et S001 pour Discovery, S003 pour Collection --- et les trois modèles concernés sont exactement ceux que le premier critère élimine.
+
+\textbf{Conséquence opérationnelle.} La mitigation attachée à TA0002 vise des systèmes d'information ; celle de TA0104 vise des automates. Un identifiant juste de nom mais faux d'univers oriente l'analyste vers un catalogue de contre-mesures inapplicable au système observé. C'est pourquoi le mauvais choix de matrice précède l'hallucination dans l'ordre des critères, et l'hallucination le F1.
+
+\textbf{Première étape : l'élimination par la matrice.} Six modèles sur dix produisent au moins un identifiant pris hors de la matrice de l'échantillon et sont écartés avant même que leur F1 soit lu : Gemini 3.1 Pro (1), Kimi K3 (3), DeepSeek V4 Flash (4), DeepSeek V4 Pro (5), Qwen3.8 (7) et GPT-5.6 Luna (9), soit vingt-neuf identifiants au total. Le cas de DeepSeek V4 Flash est le plus démonstratif : son F1 technique, 0,603, égale celui du premier du tableau, et il termine pourtant septième. C'est exactement l'effet recherché par l'ordre des critères --- une réponse prise dans le mauvais univers ne se rattrape pas par un bon score ailleurs, puisque la mitigation qu'elle entraîne ne s'applique pas au système observé.
+
+\textbf{Deuxième étape : l'hallucination.} Elle ne départage personne de plus ici, les six modèles concernés ayant déjà été écartés par la matrice, mais elle confirme la dernière place de GPT-5.6 Luna : ses 4,1\,\% --- treize identifiants fabriqués sur les vingt-deux du panel --- représentent plus de quatre fois le pire des neuf autres modèles, tous sous 1\,\%.
+
+\textbf{Troisième étape : le F1.} Il n'arbitre donc qu'entre les quatre modèles qui franchissent les deux premiers filtres sans rien concéder : GPT-5.6 Sol, Gemini 3.8 Flash, Claude Opus 4.8 et Claude Sonnet 5. En base stricte, GPT-5.6 Sol prend la tête d'un souffle sur le F1 technique (0,603 contre 0,600), les deux Claude suivant à 0,040 et 0,067.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0677}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.2257}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1140}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0971}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0959}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 16\tabcolsep) * \real{0.0948}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Rang}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Mauv. mat.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Halluc.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tech.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 tact.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{F1 s.-t.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Obsol.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Abst.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Gemini 3.8 Flash & 0 & 0,0\,\% & 0,624 & 0,648 & 0,712 & 1,9\,\% & 0,0\,\% \\
+GPT-5.6 Sol & 0 & 0,0\,\% & 0,619 & 0,651 & 0,682 & 1,6\,\% & 0,0\,\% \\
+Claude Opus 4.8 & 0 & 0,0\,\% & 0,571 & 0,587 & 0,682 & 1,3\,\% & 0,0\,\% \\
+Claude Sonnet 5 & 0 & 0,0\,\% & 0,560 & 0,512 & 0,656 & 1,9\,\% & 1,6\,\% \\
+Gemini 3.1 Pro & 1 & 0,3\,\% & 0,504 & 0,560 & 0,692 & 1,9\,\% & 0,0\,\% \\
+Kimi K3 & 3 & 0,3\,\% & 0,579 & 0,540 & 0,667 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Flash & 4 & 0,9\,\% & 0,619 & 0,595 & 0,667 & 1,6\,\% & 0,0\,\% \\
+DeepSeek V4 Pro & 5 & 0,6\,\% & 0,587 & 0,643 & 0,712 & 1,6\,\% & 0,0\,\% \\
+Qwen3.8 & 7 & 0,6\,\% & 0,571 & 0,492 & 0,682 & 0,9\,\% & 0,0\,\% \\
+GPT-5.6 Luna & 9 & 4,1\,\% & 0,542 & 0,502 & 0,682 & 1,6\,\% & 0,6\,\% \\
+\end{longtable}
+\legendetableau{Qualité du mapping, base tolérante.}{tab:classement-tolerant}
+
+Les deux tables se lisent axe par axe, sans critère éliminatoire : les matrices se ressemblant jusqu'à l'homonymie, réussir ou rater l'univers tient parfois à très peu, et une élimination donnerait à ce très-peu un poids disproportionné.
+
+\textbf{La qualité du mapping.} Trois modèles sortent du lot, dans un mouchoir inférieur au grain de reproductibilité ($\pm$0,008) : au niveau technique, GPT-5.6 Sol et DeepSeek V4 Flash (0,603) devant Gemini 3.8 Flash (0,600) en base stricte ; en base tolérante, Gemini 3.8 Flash passe premier devant Sol. Au niveau tactique, Sol mène (0,651) devant Gemini 3.8 Flash (0,648) ; en sous-technique, Gemini 3.8 Flash domine seul (0,712 en tolérante). Podium de l'axe : Sol, Gemini 3.8 Flash, DeepSeek V4 Flash.
+
+\textbf{L'hallucination, en taux.} Quatre modèles n'inventent jamais --- GPT-5.6 Sol, les deux Claude et Gemini 3.8 Flash, 0,0\,\% --- puis Kimi K3 et Gemini 3.1 Pro (0,3\,\%), DeepSeek V4 Pro et Qwen3.8 (0,6\,\%), DeepSeek V4 Flash (0,9\,\%) et GPT-5.6 Luna, 4,1\,\%, qui concentre treize des vingt-deux occurrences. L'observation qui s'en dégage : le taux ne suit ni la taille ni le rang de qualité --- GPT-5.6 Luna est économe et fabricateur, Gemini 3.1 Pro lourd et presque propre. L'hypothèse la plus plausible est l'exposition du corpus d'entraînement à la nomenclature ICS, seule zone où les fabrications surviennent.
+
+\textbf{La mauvaise matrice.} Zéro chez les quatre mêmes modèles ; de un à neuf identifiants chez les six autres (Gemini 3.1 Pro 1, Kimi K3 3, DeepSeek V4 Flash 4, DeepSeek V4 Pro 5, Qwen3.8 7, GPT-5.6 Luna 9). Que la liste des modèles propres soit identique sur les deux fautes n'est pas un hasard : elles mesurent la même compétence --- situer l'univers avant de nommer --- l'une échouant vers un identifiant existant, l'autre vers un identifiant inventé.
+
+\textbf{La stabilité.} Gemini 3.1 Pro est le plus constant (88,1\,\%), suivi de Gemini 3.8 Flash (81,0\,\%) et de Claude Opus 4.8 (76,2\,\%). Le contre-exemple éclaire l'axe : GPT-5.6 Sol, premier en qualité stricte, n'est que 64,3\,\% stable --- ses bons scores sont une moyenne de copies qui se contredisent, et en exploitation on ne relance pas trois fois.
+
+
+\textbf{Les identifiants obsolètes se concentrent sur trois attaques.} Trois échantillons concentrent l'intégralité des identifiants révoqués. S027 --- effacement des journaux système Linux --- est mappé T1070.002 par les dix modèles, aux trois exécutions : cet identifiant a été révoqué au profit de T1685.006, qui porte exactement le même nom. S007 --- message Modbus non autorisé --- est mappé T0855 par huit modèles sur dix, révoqué au profit de T1692.001. S038 --- clés de registre d'exécution automatique --- n'est touché que par GPT-5.6 Sol, qui propose T1060, révoqué au profit de T1547.001. Dans les trois cas le raisonnement est juste et seul le numéro a changé : c'est précisément ce que la base tolérante crédite.
+
+\textbf{Comparaison sur les trois modèles retenus.} Sur S027, les trois se comportent à l'identique : T1070.002 aux trois exécutions, soit un faux positif au niveau technique et un obsolète au niveau sous-technique. Sur S007, Gemini 3.8 Flash propose T0855 aux trois exécutions --- donc crédité en base tolérante --- tandis que GPT-5.6 Sol propose T0836, une technique vivante mais fausse, jamais rattrapable ; Claude Opus 4.8 est entre les deux, T0836 deux fois et T0855 une fois. Sur S038, Claude Opus 4.8 et Gemini 3.8 Flash répondent juste aux trois exécutions, GPT-5.6 Sol deux fois T1060 puis une fois la bonne réponse. L'écart entre base stricte et base tolérante ne mesure donc pas une différence de raisonnement, mais la fraîcheur du référentiel interne.
+
+\textbf{Ce que l'ancrage par MCP change, sur Claude Opus 4.8.} Rejouée avec le serveur MCP, la même campagne corrige les deux échantillons où le modèle était en défaut. Sur S027, les trois exécutions passent de T1070/T1070.002 à T1685/T1685.006 ; sur S007, de T0836 ou T0855 à T1692/T1692.001. S038, déjà juste, le reste. Le taux d'obsolescence tombe de 1,3\,\% à 0\,\% et le F1 progresse à tous les niveaux : 0,587 à 0,802 en tactique, 0,563 à 0,706 en technique, 0,636 à 0,758 en sous-technique. L'ancrage ne rend pas le modèle plus perspicace, il lui donne le référentiel courant.
+
+\textbf{Les hallucinations sont un phénomène tactique et exclusivement ICS.} Les 23 hallucinations du panel sont toutes au niveau tactique, et toutes sur des échantillons ICS. Les identifiants fabriqués --- TA0113 à TA0119, plus TA0089 et TA0024 --- se situent juste au-delà de la plage réelle des tactiques ICS, qui s'arrête à TA0111. Les modèles extrapolent la numérotation au lieu de la connaître : ils savent que les tactiques ICS commencent à TA0100 et poursuivent la série. Les tactiques concernées sont Impair Process Control (S006, S007, S008), Collection (S002, S004, S005), Discovery (S001), Inhibit Response Function (S009, S010) et Persistence (S013) --- soit les tactiques propres à l'univers industriel, celles qui n'ont pas d'équivalent Enterprise dont le modèle pourrait se souvenir.
+
+\textbf{L'homonymie entre matrices élimine des modèles par ailleurs corrects.} Neuf tactiques portent le même nom dans les deux matrices : Collection, Command and Control, Discovery, Execution, Impact, Initial Access, Lateral Movement, Persistence et Privilege Escalation. Un modèle qui reconnaît correctement l'intention mais ignore qu'il lit un journal industriel produit l'identifiant Enterprise homonyme --- TA0007 au lieu de TA0102 pour Discovery, TA0009 au lieu de TA0100 pour Collection. Quatre échantillons sont touchés : S000 et S001 (Discovery), S003 (Collection) et S012 (Execution). Trois modèles commettent cette confusion : Qwen3.8 quatre fois, DeepSeek V4 Pro et GPT-5.6 Luna trois fois chacun. Le raisonnement est bon, l'univers est faux, et la mitigation qui en découlerait serait inapplicable au système observé --- d'où son rang de premier critère d'élimination.
+
+\textbf{Le cas de Claude Opus 4.8.} Claude Opus 4.8 ne produit aucun identifiant hors matrice ni aucune hallucination, avec ou sans serveur. Il ne doit donc pas son maintien dans le panel à l'ancrage, mais à une connaissance correcte de la frontière entre les deux univers. L'apport du MCP porte ailleurs, sur l'actualité du référentiel.
+
+\textbf{Les tactiques concernées par l'obsolescence chez Claude Opus 4.8.} Deux tactiques du corpus concentrent les identifiants obsolètes de Claude Opus 4.8, et serviront d'exemples au chapitre 2. TA0112 Defense Impairment, matrice Enterprise, par l'échantillon S027 --- effacement des journaux système Linux --- où T1070.002 est proposé aux trois exécutions alors que l'identifiant courant est T1685.006. Et TA0106 Impair Process Control, matrice ICS, par l'échantillon S007 --- message Modbus non autorisé --- où T0855 est proposé une fois sur trois alors que l'identifiant courant est T1692.001. Les deux cas relèvent d'une révocation avec successeur officiel, donc résolubles par simple consultation du référentiel.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2778}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1603}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1389}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1389}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1421}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1421}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Enterprise}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{ICS}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Total O}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Affirm.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Taux}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Claude Opus 4.8 & 3 & 1 & 4 & 318 & 1,3\,\% \\
+Claude Sonnet 5 & 3 & 3 & 6 & 313 & 1,9\,\% \\
+GPT-5.6 Sol & 5 & 0 & 5 & 318 & 1,6\,\% \\
+GPT-5.6 Luna & 3 & 2 & 5 & 316 & 1,6\,\% \\
+Gemini 3.1 Pro & 3 & 3 & 6 & 315 & 1,9\,\% \\
+Gemini 3.8 Flash & 3 & 3 & 6 & 316 & 1,9\,\% \\
+Kimi K3 & 3 & 2 & 5 & 318 & 1,6\,\% \\
+DeepSeek V4 Pro & 3 & 2 & 5 & 318 & 1,6\,\% \\
+DeepSeek V4 Flash & 3 & 2 & 5 & 318 & 1,6\,\% \\
+Qwen3.8 & 3 & 0 & 3 & 318 & 0,9\,\% \\
+\textbf{Total} & \textbf{32} & \textbf{18} & \textbf{50} & \textbf{3 168} & \textbf{1,6\,\%} \\
+\end{longtable}
+\legendetableau{Répartition des identifiants obsolètes par matrice et taux d'obsolescence, par modèle.}{tab:obsoletes}
+
+
+\textbf{Lecture du tableau.} Les 32 identifiants obsolètes Enterprise proviennent presque tous du même échantillon, S027, sur lequel les dix modèles se trompent aux trois exécutions ; GPT-5.6 Sol y ajoute S038. Les 18 identifiants ICS proviennent tous de S007. L'obsolescence n'est donc pas diffuse : elle se concentre sur les rares techniques renommées entre deux versions, et frappe indifféremment les dix modèles. Aucun ne se distingue par un référentiel plus à jour --- Qwen3.8 affiche le taux le plus bas, 0,9\,\%, non parce qu'il connaît T1685.006, mais parce qu'il se trompe autrement sur S007.
+
+\textbf{La base tolérante ne déplace que la tête du classement.} Gemini 3.8 Flash passe devant GPT-5.6 Sol (0,624 contre 0,619 en technique) : une part plus grande de ses erreurs était constituée d'identifiants révoqués dont le successeur officiel était la bonne réponse. Les quatre modèles retenus restent les mêmes, et l'élimination ne bouge pas, puisque ni la matrice ni l'hallucination ne dépendent de la base. Le gain au passage en base tolérante mesure l'actualité du référentiel interne de chaque modèle : de 0,008 pour Claude Opus 4.8 à 0,024 pour Gemini 3.8 Flash et Claude Sonnet 5. Qwen3.8 est le seul dont le F1 technique ne bouge pas d'un millième --- son référentiel est le plus à jour du panel ---, mais ses sept identifiants hors matrice l'ont déjà écarté.
+
+\textbf{Ce que ces deux tableaux servent à la comparaison avec le MCP.} Ils constituent la ligne de base de la phase 2 : mêmes échantillons, même protocole, mêmes modèles, mais sans serveur. Trois lectures en découlent. D'abord, c'est la base tolérante qui sera la référence à battre : la résolution des identifiants révoqués est précisément la fonction que le serveur mécanise, et comparer les résultats avec MCP à la seule base stricte confondrait deux effets --- le rattrapage de version, déjà mesuré par l'écart entre les tableaux~\ref{tab:classement-strict} et~\ref{tab:classement-tolerant}, et l'apport propre de l'ancrage, c'est-à-dire consulter le référentiel avant de répondre. Tout dépassement du tableau~\ref{tab:classement-tolerant} mesurera l'ancrage, et non le simple rafraîchissement des connaissances. Ensuite, les deux colonnes de tête deviennent les indicateurs directs de l'apport du serveur : celui-ci ne sert que des identifiants vivants, pris dans la matrice interrogée, de sorte que les vingt-neuf identifiants hors matrice et les vingt-deux identifiants fabriqués relevés ici doivent disparaître avec lui ; s'ils subsistent, c'est que l'ancrage n'a pas été utilisé. Enfin, l'écart entre les deux zones désigne le terrain où le gain est attendu : au niveau technique, les dix modèles se tiennent entre 0,639 et 0,750 sur la matrice Enterprise, mais entre 0,167 et 0,452 sur la matrice ICS. La connaissance du domaine industriel est la plus datée et la plus lacunaire ; c'est là que le référentiel outillé a le plus à apporter.
+
+\subsubsection{Fiabilité, temps de traitement et coût}\label{sec:5-2-ancien}
+Aucun indicateur du tableau~\ref{tab:fiabilite} ne dépend de la base de calcul, à l'exception de la dernière colonne : l'efficacité rapporte le F1 technique strict au coût en jetons.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0700}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.2144}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1016}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.1106}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0926}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0880}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0700}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0700}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 18\tabcolsep) * \real{0.0948}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Rang}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Modèle}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Stab.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p50 (ms)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{p95 (ms)}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Jetons}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Sur-sp.}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{N1}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{N2}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Effic.}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+1 & Gemini 3.1 Pro & 88,1\,\% & 18 532 & 103 824 & 9 023 & 25,0\,\% & 0\,\% & 0\,\% & 0,053 \\
+2 & Gemini 3.8 Flash & 81,0\,\% & 10 664 & 44 482 & 7 566 & 10,2\,\% & 0\,\% & 0\,\% & 0,079 \\
+3 & Claude Opus 4.8 & 76,2\,\% & 4 282 & 6 050 & 6 572 & 10,0\,\% & 0\,\% & 0\,\% & 0,086 \\
+4 & Claude Sonnet 5 & 66,7\,\% & 4 291 & 10 994 & 6 740 & 15,0\,\% & 0\,\% & 0\,\% & 0,080 \\
+5 & GPT-5.6 Sol & 64,3\,\% & 6 086 & 24 145 & 4 649 & 10,0\,\% & 0\,\% & 0\,\% & 0,130 \\
+6 & Kimi K3 & 59,5\,\% & 24 034 & 202 504 & 6 027 & 10,0\,\% & 0\,\% & 0\,\% & 0,094 \\
+7 & Qwen3.8 & 57,1\,\% & 82 854 & 269 617 & 9 641 & 11,7\,\% & 0\,\% & 0\,\% & 0,059 \\
+8 & GPT-5.6 Luna & 54,8\,\% & 4 626 & 28 758 & 5 004 & 26,7\,\% & 0\,\% & 0\,\% & 0,105 \\
+9 & DeepSeek V4 Flash & 52,4\,\% & 3 407 & 19 812 & 5 594 & 11,7\,\% & 0\,\% & 0\,\% & 0,108 \\
+10 & DeepSeek V4 Pro & 42,9\,\% & 40 724 & 151 756 & 7 941 & 18,3\,\% & 0\,\% & 0\,\% & 0,072 \\
+\end{longtable}
+\legendetableau{Classement de la fiabilité, du temps de traitement et du coût.}{tab:fiabilite}
+
+Les jetons du tableau sont une unité physique, pas une facture : chaque fournisseur fixe son tarif, et ces tarifs changent en quelques semaines. Aux tarifs de septembre 2026 (entrée/sortie en \$ par million de jetons : GPT-5.6 Sol 4/20, Gemini 3.8 Flash 0,75/3,75, Claude Opus 4.8 5/25, Claude Sonnet 5 2/10), les 126 exécutions coûtent exactement 3,09, 1,36, 4,63 et 2,06\,\$ respectivement (répartitions entrée/sortie réelles de chaque exécution, calcul du script) : l'ordre budgétaire ne suit ni les jetons ni le temps, d'où le choix d'unités physiques dans le tableau, complétées par ce rappel daté.
+
+
+\textbf{Deux modèles écartés avant la campagne.} Deux modèles ont été écartés après essais. kimi-k2.7-code affichait 158 s de latence médiane, soit plus de cinq heures de campagne contre 50 minutes pour kimi-k3 de la même lignée. qwen3.5-35b-a3b consommait 47 626 jetons par appel, dont 94\,\% en raisonnement, avec deux sorties non conformes sur huit essais. Dans les deux cas, la dépense n'était pas justifiée par la qualité. Ce n'est pas un effet de taille --- DeepSeek V4 Flash, modèle léger, consomme moins que DeepSeek V4 Pro tout en obtenant de meilleurs résultats --- mais de longueur de raisonnement.
+
+\textbf{Pourquoi aucun niveau de raisonnement n'est imposé.} L'effort de raisonnement est laissé aux valeurs par défaut et n'est pas traité comme facteur : aucune échelle commune n'existe entre éditeurs, et forcer un niveau « maximal » partout déplacerait les modèles vers des points arbitraires différents plutôt que comparables. Même logique que pour la température. Le faire varier changerait la question posée et porterait la campagne à 3 780 appels. L'effet reste mesuré : les jetons de raisonnement sont relevés et rapportés --- c'est ce qui a permis d'écarter les deux modèles ci-dessus.
+
+\textbf{La stabilité ne mesure pas la justesse.} Gemini 3.1 Pro affiche la meilleure du panel, 88,1\,\%, tout en étant dernier en F1 technique en base stricte : il se trompe de façon remarquablement reproductible. Sa sur-spécification de 25,0\,\% --- une sous-technique inventée sur un quart des techniques terminales --- et sa médiane de 18,5 s achèvent de le disqualifier, et il avait de toute façon été écarté par la matrice.
+
+\textbf{Parmi les quatre modèles retenus, la hiérarchie s'inverse d'un critère à l'autre.} Gemini 3.8 Flash est le plus stable (81,0\,\%), devant Claude Opus 4.8 (76,2\,\%), Claude Sonnet 5 (66,7\,\%) et GPT-5.6 Sol (64,3\,\%). Sur la vitesse, l'ordre se renverse presque : les deux Claude traitent un échantillon en 4,3 s de médiane, GPT-5.6 Sol en 6,1 s, Gemini 3.8 Flash en 10,7 s.
+
+\textbf{Le 95e centile sépare mieux que la médiane.} Claude Opus 4.8 est à 6,0 s, le plus bas des dix modèles, soit 1,4 fois sa propre médiane ; Claude Sonnet 5 est à 11,0 s (2,6 fois), GPT-5.6 Sol à 24,1 s (4,0 fois) et Gemini 3.8 Flash à 44,5 s (4,2 fois). C'est ce rapport, plus que la médiane seule, qui dit si un centre opérationnel peut planifier sa charge : il mesure le pire cas ordinaire, celui qu'une moyenne masquerait.
+
+\textbf{Le coût sépare franchement.} GPT-5.6 Sol consomme 4 649 jetons par exécution, Claude Opus 4.8 6 572, Claude Sonnet 5 6 740 et Gemini 3.8 Flash 7 566 --- soit 63\,\% de plus que GPT-5.6 Sol. L'efficacité classe donc presque à l'inverse de la qualité brute : 0,130 pour GPT-5.6 Sol, 0,086 pour Claude Opus 4.8, 0,080 pour Claude Sonnet 5 et 0,079 pour Gemini 3.8 Flash.
+
+\textbf{Deux colonnes valent zéro pour les dix modèles.} N1 et N2 sont neutralisées par le format de sortie, qui impose les trois champs : la sous-spécification est empêchée par le protocole, non par une vertu des modèles. Les colonnes sont conservées parce que cette nullité est elle-même un résultat.
+
+\subsubsection{Choix du modèle}\label{sec:5-3-ancien}
+\textbf{Le coût en argent.} Les jetons ne sont pas la dépense, ils n'en sont que l'unité : chaque fournisseur fixe son tarif, et seul le montant facturé se paie. Aux tarifs du 16 septembre 2026, la campagne coûte 1,36\,\$ sur Gemini 3.8 Flash, 2,06\,\$ sur Claude Sonnet 5, 3,09\,\$ sur GPT-5.6 Sol et 4,63\,\$ sur Claude Opus 4.8 --- et, hors des quatre finalistes, 0,12\,\$ sur DeepSeek V4 Flash, 0,22\,\$ sur GPT-5.6 Luna, 0,62\,\$ sur DeepSeek V4 Pro. Le classement en argent inverse celui des jetons : le plus gourmand des quatre en jetons est le moins cher en dollars, son tarif compensant six fois sa verbosité. Deux échéances datent ces chiffres : le tarif de Sol est promotionnel, et celui de Gemini 3.8 Flash double au 1\up{er} janvier 2027.
+
+\textbf{Le temps de traitement.} En médiane : DeepSeek V4 Flash (3,4 s), Claude Opus 4.8 et Claude Sonnet 5 (4,3 s). Le 95\up{e} centile sépare les prévisibles des erratiques : Claude Opus 4.8 y est seul de son espèce --- 6,1 s, soit 1,4 fois sa médiane, le plus bas des dix --- quand Gemini 3.8 Flash monte à 44,5 s et Qwen3.8 à 270 s. Dans un centre qui traite des milliers d'alertes, le p95 est le temps que l'analyste attend vraiment les mauvais jours.
+
+\textbf{Pourquoi des consommations si différentes à entrées comparables.} Tous les modèles reçoivent le même journal et rendent le même triplet JSON : l'entrée et la sortie utile sont presque identiques d'un modèle à l'autre. L'écart --- de 4\,649 jetons par exécution chez GPT-5.6 Sol à 9\,641 chez Qwen3.8 --- vient pour l'essentiel des jetons de raisonnement : la réflexion interne que la plupart des fournisseurs facturent comme de la sortie sans la restituer intégralement. Kimi K3 raisonne systématiquement, sans réglage pour l'éteindre ; Qwen3.8 et Gemini 3.8 Flash raisonnent par défaut. À tarif de sortie élevé, ce raisonnement invisible devient la part dominante de la facture --- c'est lui, et non la réponse rendue, qui sépare les sobres des gourmands.
+
+\textbf{Le modèle retenu.} Sur six axes --- qualité, matrice, hallucination, stabilité, argent, temps --- les présences aux podiums donnent Gemini 3.8 Flash et Claude Opus 4.8 à quatre, GPT-5.6 Sol, Claude Sonnet 5 et DeepSeek V4 Flash à trois. L'égalité de tête se départage par la nature des présences : celles de Claude Opus 4.8 couvrent toute la fiabilité --- matrice, hallucination, stabilité --- plus le temps ; celles de Gemini 3.8 Flash s'arrêtent avant le temps, l'axe qui se multiplie par le volume, et que la phase 2 alourdira encore en ajoutant au contexte les appels d'outils et leurs résultats. Ses absences à lui --- le podium du mapping, manqué de 0,040, et l'argent --- sont les moins graves pour une campagne d'évaluation. La phase 2 cherche un instrument : peu dispersé pour laisser l'effet de l'ancrage visible, au temps prévisible, et porteur d'une marge à combler --- ce F1 technique qui tombe de 0,714 sur Enterprise à 0,262 sur ICS. Claude Opus 4.8 est retenu ; les tableaux ci-dessus constituent sa ligne de base sans serveur, celle contre laquelle l'apport de l'ancrage sera mesuré.
+
+
+\fi
+\FloatBarrier

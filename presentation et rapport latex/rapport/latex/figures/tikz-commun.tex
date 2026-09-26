@@ -1,0 +1,44 @@
+% =====================================================================
+%  Styles partagés par toutes les figures TikZ de l'essai.
+%  Chargé une seule fois depuis le préambule de main.tex.
+%  Modifier une couleur ici la modifie dans toutes les figures.
+% =====================================================================
+
+\definecolor{figbleu}{RGB}{31,95,168}
+\definecolor{figvert}{RGB}{26,122,76}
+\definecolor{figor}{RGB}{154,123,23}
+\definecolor{figrouge}{RGB}{192,57,43}
+\definecolor{figgris}{RGB}{120,120,120}
+\definecolor{figbordeaux}{RGB}{155,27,74}
+\definecolor{figpeche}{RGB}{252,229,205}
+\definecolor{figjaune}{RGB}{252,229,110}
+
+\tikzset{
+  % --- boîtes de base -------------------------------------------------
+  fbase/.style   = {rounded corners=3pt, line width=0.7pt, align=center,
+                    inner sep=5pt, font=\footnotesize},
+  fbleu/.style   = {fbase, draw=figbleu,      fill=figbleu!6},
+  fvert/.style   = {fbase, draw=figvert,      fill=figvert!6},
+  for/.style     = {fbase, draw=figor,        fill=figor!12},
+  frouge/.style  = {fbase, draw=figrouge,     fill=figrouge!5},
+  fgris/.style   = {fbase, draw=figgris,      fill=black!4},
+  fbord/.style   = {fbase, draw=figbordeaux,  fill=figbordeaux!4},
+  fblanc/.style  = {fbase, draw=black!35,     fill=white},
+  fpointille/.style = {fbase, draw=black!45, fill=black!4, dashed},
+  % --- variantes alignées à gauche ------------------------------------
+  fgauche/.style = {align=left, text width=3.3cm},
+  % --- flèches --------------------------------------------------------
+  fleche/.style  = {-{Stealth[length=5pt,width=4pt]}, line width=0.8pt,
+                    draw=black!55},
+  fleche2/.style = {{Stealth[length=5pt,width=4pt]}-{Stealth[length=5pt,width=4pt]},
+                    line width=0.8pt, draw=black!55},
+  fgrosse/.style = {-{Triangle[length=6pt,width=6pt]}, line width=1pt,
+                    draw=black!60},
+  fpale/.style   = {-{Stealth[length=5pt,width=4pt]}, line width=0.8pt,
+                    draw=black!30},
+  % --- étiquettes de flèche -------------------------------------------
+  etiq/.style    = {font=\scriptsize, inner sep=2pt, fill=white,
+                    text=black!65},
+  etiqi/.style   = {etiq, font=\scriptsize\itshape},
+  etiqt/.style   = {etiq, font=\scriptsize\ttfamily},
+}

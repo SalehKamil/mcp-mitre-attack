@@ -1,0 +1,47 @@
+% =====================================================================
+%  Styles propres à l'annexe (schémas d'exécution et blocs de code).
+%  Les styles de flèches y sont préfixés « a » (afleche, aflechep, aetiq)
+%  pour ne pas écraser ceux de tikz-commun.tex utilisés par les chapitres.
+% =====================================================================
+
+% ---------- Palette ----------
+\definecolor{cAtk}{HTML}{C0392B}\definecolor{cTar}{HTML}{2C3E50}
+\definecolor{cZeek}{HTML}{2980B9}\definecolor{cGT}{HTML}{27AE60}
+\definecolor{cScript}{HTML}{8E44AD}\definecolor{cOut}{HTML}{E67E22}
+\definecolor{cBg}{HTML}{F4F6F7}\definecolor{cCode}{HTML}{ECF0F1}
+\definecolor{cComment}{HTML}{7F8C8D}\definecolor{cStr}{HTML}{C0392B}
+
+% ---------- Styles TikZ ----------
+\tikzset{
+  boite/.style={rounded corners=2pt, draw, thick, align=center,
+                inner sep=3.5pt, font=\footnotesize, minimum height=0.75cm,
+                fill=white},
+  atk/.style   ={boite, draw=cAtk,   text=cAtk,   fill=cAtk!6},
+  tar/.style   ={boite, draw=cTar,   text=cTar,   fill=cTar!6},
+  zeek/.style  ={boite, draw=cZeek,  text=cZeek,  fill=cZeek!6},
+  gt/.style    ={boite, draw=cGT,    text=cGT!60!black, fill=cGT!8},
+  script/.style={boite, draw=cScript,text=cScript,fill=cScript!7},
+  sortie/.style={boite, draw=cOut,   text=cOut!70!black, fill=cOut!9},
+  afleche/.style ={-{Latex[length=2.3mm]}, thick},
+  aflechep/.style={-{Latex[length=2.0mm]}, thick, dashed},
+  aetiq/.style   ={font=\scriptsize\itshape, text=cComment},
+}
+
+% ---------- Blocs de code de l'annexe ----------
+\lstset{
+  basicstyle=\ttfamily\scriptsize, backgroundcolor=\color{cCode},
+  frame=single, framerule=0pt, rulecolor=\color{cCode},
+  xleftmargin=6pt, xrightmargin=3pt, framexleftmargin=5pt,
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, tabsize=2, aboveskip=3pt, belowskip=3pt,
+  commentstyle=\color{cComment}\itshape, stringstyle=\color{cStr},
+  literate=%
+    {é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {â}{{\^a}}1
+    {î}{{\^\i}}1 {ï}{{\"\i}}1 {ô}{{\^o}}1 {û}{{\^u}}1 {ù}{{\`u}}1
+    {ç}{{\c c}}1 {É}{{\'E}}1 {«}{{\guillemotleft}}1 {»}{{\guillemotright}}1
+    {’}{{'}}1 {–}{{-}}1 {…}{{...}}1,
+}
+\lstdefinestyle{bash}{language=bash}
+\lstdefinestyle{json}{language=,moredelim=[s][\color{cTar}\bfseries]{"}{":}}
+\lstdefinestyle{jsonfull}{language=,basicstyle=\ttfamily\tiny,
+  moredelim=[s][\color{cTar}\bfseries]{"}{":}, aboveskip=3pt, belowskip=3pt}

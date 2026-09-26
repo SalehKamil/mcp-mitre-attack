@@ -1,0 +1,71 @@
+% Figure 1.5 --- Génération de la télémétrie TO et TI
+\begin{tikzpicture}[
+    machine/.style = {fblanc, minimum height=1.25cm, text width=2.5cm,
+                      inner sep=4pt},
+    journal/.style = {fbase, draw=none, fill=figpeche, minimum height=0.95cm,
+                      text width=3.1cm},
+    ip/.style      = {font=\scriptsize, text=black!55},
+  ]
+
+% ------------------------------------------------------------------ zone TO
+\node[machine] at (0,0)      (grfics) {Simulation\\ GRFICS v3\\[-1pt] {\scriptsize\color{black!55} .95.45}};
+\node[machine] at (2.9cm,0)  (plc)    {Automate\\ OpenPLC\\[-1pt] {\scriptsize\color{black!55} .95.2}};
+\node[machine] at (5.8cm,0)  (ews)    {Poste ing.\\ EWS\\[-1pt] {\scriptsize\color{black!55} .95.5}};
+\node[machine, minimum height=1.05cm] at (0,-2.2cm) (zeek) {Sonde Zeek};
+
+\node[journal] at (0,-4.2cm)     (jzeek) {Journaux Zeek\\ (Modbus)};
+\node[journal] at (3.9cm,-4.2cm) (jplc)  {Audit hôte\\ PLC};
+
+\draw[fpale] (zeek.south) -- (jzeek.north);
+\draw[fpale] (plc.south)  -- (jplc.north);
+
+\node[anchor=west, font=\bfseries\large, text=figbleu]
+      at ($(grfics.north west)+(0,0.55cm)$) (titreTO)
+     {Zone TO : réseau ICS 192.168.95.0/24};
+\begin{scope}[on background layer]
+  \node[draw=figbleu, line width=1pt, rounded corners=6pt, fill=white,
+        fit=(titreTO)(grfics)(ews)(zeek)(jzeek)(jplc), inner sep=10pt]
+        (zoneTO) {};
+\end{scope}
+
+% ------------------------------------------------------------------ zone TI
+\node[machine, text width=3.2cm] at (10.6cm,0) (dc01)
+     {Windows Server\\ DC01 (Sysmon)\\[-1pt] {\scriptsize\color{black!55} .33.133}};
+\node[machine, text width=3.2cm] at (14.3cm,0) (web01)
+     {Serveur Linux\\ web01 (auditd)\\[-1pt] {\scriptsize\color{black!55} .33.134}};
+
+\node[journal, text width=3.4cm] at (10.6cm,-4.2cm) (jsys)
+     {Journaux Sysmon\\ + Security};
+\node[journal, text width=2.6cm] at (14.3cm,-4.2cm) (jaud)
+     {Journal\\ audit.log};
+
+\draw[fpale] (dc01.south)  -- (jsys.north);
+\draw[fpale] (web01.south) -- (jaud.north);
+
+\node[anchor=west, font=\bfseries\large, text=figvert]
+      at ($(dc01.north west)+(0,0.55cm)$) (titreTI)
+     {Zone TI : 192.168.33.0/24};
+\begin{scope}[on background layer]
+  \node[draw=figvert, line width=1pt, rounded corners=6pt, fill=white,
+        fit=(titreTI)(dc01)(web01)(jsys)(jaud), inner sep=10pt] (zoneTI) {};
+\end{scope}
+
+% ------------------------------------------------------------- convergence
+\node[fbase, draw=none, fill=figjaune, minimum height=1cm, text width=11.5cm]
+      at (7.2cm,-6.9cm) (jeu)
+     {Jeu de données : fichiers logs + traces avec les identifiants MITRE};
+
+\foreach \s in {jzeek, jplc, jsys, jaud}
+  \draw[fpale, rounded corners=4pt]
+        (\s.south) |- ($(jeu.north)+(0,0.45cm)$) -- (jeu.north);
+
+\node[fbleu, minimum height=1cm, text width=3.6cm, font=\ttfamily\footnotesize]
+      at (7.2cm,-8.9cm) (prep) {prepare\_dataset.py};
+\node[fvert, minimum height=1cm, text width=7.4cm]
+      at (7.2cm,-10.9cm) (out)
+     {42 échantillons + fichier de vérité de terrain};
+
+\draw[fpale] (jeu.south)  -- (prep.north);
+\draw[fpale] (prep.south) -- (out.north);
+
+\end{tikzpicture}

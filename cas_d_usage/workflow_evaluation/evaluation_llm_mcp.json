@@ -1,0 +1,1188 @@
+{
+  "name": "evaluation_llm_mcp",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3aeee02e-8788-4469-a96e-caa38b3296af",
+      "name": "Lancer l'evaluation",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ COLLEZ VOS CLES ICI — C'EST TOUT ============\n// Les modeles sont des NOEUDS VISIBLES a droite. Ici vous ne mettez que les cles.\n// (Ces cles restent dans votre instance n8n ; n'exportez pas ce workflow avec elles.)\n\nconst CLES = {\n  // Une cle restee a \"COLLER_...\" est detectee au lancement pour tout\n  // modele actif : la campagne s'arrete au lieu d'echouer 126 fois.\n  anthropic:  \"COLLER_CLE_ANTHROPIC\",   // console.anthropic.com\n  openai:     \"COLLER_CLE_OPENAI\",      // platform.openai.com\n  google:     \"COLLER_CLE_GEMINI\",    // aistudio.google.com — METHODE B uniquement\n  // agregateur: plus utilise — les open-weight passent desormais en direct\n  agregateur: \"COLLER_CLE_AGREGATEUR\",  // conserve au cas ou\n  deepseek:   \"COLLER_CLE_DEEPSEEK\",    // platform.deepseek.com\n  qwen:       \"COLLER_CLE_QWEN\",        // Alibaba Cloud Model Studio (DashScope)\n  kimi:       \"COLLER_CLE_KIMI\",        // platform.moonshot.ai\n};\n\n// DEFINIR LA RACINE (pour récupérer les échantillons)\n\n// SOit la garder vide et lancer n8n avec \n// cd \"%USERPROFILE%\"\n// npx n8n\n\n// Soit la laisser avec les valeurs actuelles : \n  const RACINE_MANUELLE = \"C:/Users/<nom_du_user>/.n8n-files\";            // \nconst RACINE_RELATIVE = \".n8n-files\";  // repli sans variable d'environnement\n\n// Correction d'erreur d'accès à l'environnement USERPROFILE. \nfunction env(n) {\n  try {\n    const v = ($env && $env[n]) ? String($env[n]) : \"\";\n    return /access to env vars denied|\\[ERROR/i.test(v) ? \"\" : v;\n  } catch (e) { return \"\"; }\n}\nconst profil = env(\"USERPROFILE\") || (env(\"HOMEDRIVE\") + env(\"HOMEPATH\"))\n               || env(\"HOME\");\nlet racine_source = \"RACINE_MANUELLE\";\nlet racine = RACINE_MANUELLE;\nif (!racine) { racine = env(\"N8N_FILES_DIR\"); racine_source = \"N8N_FILES_DIR\"; }\nif (!racine && profil) { racine = profil + \"/.n8n-files\"; racine_source = \"profil utilisateur\"; }\nif (!racine) { racine = RACINE_RELATIVE; racine_source = \"chemin relatif au dossier de lancement de n8n\"; }\nracine = racine.replace(/\\\\/g, \"/\").replace(/\\/+$/, \"\");\n\n// ============ QUEL(S) MODELE(S) CETTE EXECUTION TRAITE ============\n// \"\" (DEFAUT) = ce sont les cases actif:true de « Preparer les iterations »\n//              qui decident ; plusieurs modeles actifs tournent en serie.\n// Non vide   = force CE modele et IGNORE les cases actif. Il doit alors etre\n//              marque actif:true, sinon la campagne s'arrete : une valeur\n//              oubliee ici relancerait un modele deja evalue et ajouterait ses\n//              lignes en double dans son fichier de resultats.\n// Pour lancer N campagnes en parallele : dupliquer ce workflow N fois dans n8n\n// et ne changer QUE cette ligne dans chaque copie. Chaque execution ecrira dans\n// son propre fichier, donc aucune collision sur l'ecriture en mode ajout.\n// La valeur doit correspondre exactement au champ \"modele\" de la liste MODELES.\nconst MODELE_FORCE = \"\";\n\n// ============ PROJET GCP FACTURE POUR LE QUOTA VERTEX ============\n\nconst PROJET_GCP = \"id_projet_vertex_google\";   // <- verifier dans la console GCP\n\n// Endpoint open-weight (choisir UNE ligne) :\nconst AGG_BASE = \"https://api.deepinfra.com/v1/openai\";   // DeepInfra\n// const AGG_BASE = \"https://openrouter.ai/api/v1\";       // OpenRouter\n\nreturn [{ json: {\n  CLES, AGG_BASE, racine, modele_force: MODELE_FORCE,\n  runs_par_question: 3,     // 3 - 5 executions par echantillon (stabilite) chosir un nombre pair pour éviter un cas ambigu \n  limite_samples: 0,        // 0 = LES 42 echantillons ; mettre 4-5 pour un test de cout\n  numero_run_depart: 1,\n  temperature: 0,\n  // Plafond de sortie IDENTIQUE pour tous les modeles. 32768 est assez haut\n  // pour qu'aucun modele ne l'atteigne sur cette tache (Gemini a produit au\n  // maximum 426 jetons, soit 1,3 % du plafond) tout en gardant un filet de\n  // securite contre une generation qui s'emballe : a 15 $/M en sortie chez\n  // Moonshot, 131 000 jetons couteraient 2 $ pour un seul appel.\n  // Le champ meta.fin_raison permet de PROUVER apres coup qu'il n'a jamais\n  // contraint personne : aucun enregistrement ne doit porter \"length\".\n  // Ne PAS supprimer ce parametre : il est obligatoire chez Anthropic.\n  max_tokens_sortie: 32768,\n  // --- espacement nominal entre deux appels reussis ---\n  pause_entre_appels_s: 8,  // pause PAR DEFAUT ; surchargee par modele via pause_apres_s (Moonshot direct : 21 s car 3 req/min).\n\n  // --- reprise sur erreur transitoire (429 / 5xx / reseau) ---\n  // Vertex renvoie 429 quand la capacite partagee (Dynamic Shared Quota) est\n  // saturee : ce n'est PAS une question de cadence, c'est une question de\n  // disponibilite. On respecte le Retry-After / retryDelay du serveur, sinon\n  // backoff exponentiel avec jitter.\n  // Timeout client. Vertex coupe de lui-meme a 10 min ; un timeout plus court\n  // fait apparaitre des 499 (CANCELLED) cote Google : la requete a consomme de\n  // la capacite mais ne rend rien. 180 s etait trop court pour un modele a\n  // raisonnement avec max_tokens_sortie a 8192.\n  timeout_appel_ms: 600000,\n\n  max_tentatives: 5,        // remonte de 2 : au palier 3 req/min de Moonshot, un\n                            // seul reessai ne suffit pas a absorber une rafale de 429\n  backoff_base_s: 25,   // repli si AUCUN delai serveur ; compatible palier 3 RPM Moonshot.       // 15 -> 30 -> 60 -> 60 ... (avec jitter)\n  backoff_max_s: 60,        // < 65 s : n8n garde l'execution en memoire au lieu de la decharger en base\n\n  gcp_project_id: env(\"GCP_PROJECT_ID\") || PROJET_GCP,\n  fichier_adc:     racine + \"/application_default_credentials.json\",\n  fichier_dataset: racine + \"/dataset/S*.jsonl\",\n  // ---- sortie : UN FICHIER PAR MODELE ----\n  // Le nom complet est construit dans \"Preparer les iterations\" a partir de\n  // l'identifiant du modele. Indispensable des lors que plusieurs campagnes\n  // tournent en parallele : le noeud d'ecriture est en mode ajout, et deux\n  // executions visant le meme fichier entrelaceraient leurs lignes.\n  dossier_sortie:  racine + \"/resultats\",\n  suffixe_sortie:  \"\",      // ex. \"_essai2\" pour ne pas melanger deux campagnes\n  \n  prompt_system: \"Tu es un analyste en cybersecurite specialiste du referentiel MITRE ATT&CK (matrices Enterprise et ICS). On te soumet les journaux produits par UNE SEULE action offensive. Ta mission : produire le mapping ATT&CK aux trois niveaux.\\n\\nREPONDS UNIQUEMENT par un objet JSON valide, sans texte avant ni apres, sans balises Markdown, au schema EXACT suivant :\\n{\\n  \\\"tactique\\\": \\\"TAxxxx\\\",\\n  \\\"technique\\\": \\\"Txxxx\\\",\\n  \\\"sous_technique\\\": \\\"Txxxx.yyy\\\",\\n  \\\"element_cite\\\": \\\"l'element du journal qui justifie le mapping\\\",\\n  \\\"justification\\\": \\\"une ou deux phrases\\\"\\n}\\n\\nRegles imperatives :\\n- UN SEUL identifiant par niveau. Jamais de liste, jamais d'alternative, jamais de \\\"ou\\\". Toute reponse contenant plusieurs identifiants a un meme niveau est rejetee.\\n- \\\"technique\\\" est la technique PARENTE, sans suffixe (ex. \\\"T1059\\\", pas \\\"T1059.001\\\").\\n- \\\"sous_technique\\\" : l'identifiant complet (ex. \\\"T1059.001\\\") si la technique en possede une qui correspond ; exactement la chaine \\\"aucune\\\" si la technique n'en possede pas ; la chaine vide \\\"\\\" si tu ne peux pas determiner laquelle.\\n- Laisse de meme la chaine vide \\\"\\\" a un niveau que tu ne peux pas determiner. Ne devine pas pour remplir.\\n- N'invente aucun identifiant : uniquement des identifiants MITRE ATT&CK reels, de la matrice indiquee dans la question.\\n- \\\"element_cite\\\" : recopie l'element PRECIS du journal utilise comme preuve.\",\n  // ================= PHASE 2 : SERVEUR MCP MITRE ATT&CK =================\n  mcp_actif: true,          // false = rejoue exactement la campagne de phase 1\n\n  // Le serveur tourne en local : uv run mcp_mitre.py --http\n  // Il n'a AUCUNE authentification : le laisser sur la boucle locale.\n  // Depuis n8n en conteneur Docker, remplacer 127.0.0.1 par\n  // host.docker.internal (Windows/macOS) ou par l'IP de la passerelle.\n  mcp_url: \"http://127.0.0.1:8733/mcp\",\n  mcp_sonde: \"http://127.0.0.1:8733/healthz\",\n  mcp_timeout_ms: 120000,\n\n  // Version du serveur MCP exigee pour cette campagne (\"\" = pas de controle).\n  // Tous les modeles compares doivent etre servis par la MEME version : le\n  // bloc d'outils que lit le modele (tools/list) en depend. La v2.2.2 rend\n  // les memes reponses ATT&CK que la v2.2.1, mais les descriptions de trois\n  // outils internes different. La campagne s'arrete si la sonde /healthz\n  // annonce une autre version.\n  mcp_version_attendue: \"2.2.2\",\n\n  // Nombre maximal d'allers-retours d'outils pour UNE iteration. Au-dela,\n  // l'iteration est close en 'mcp_tours_epuises' et exclue des metriques :\n  // une boucle d'outils qui ne converge pas ne mesure pas la competence de\n  // mapping du modele. 8 laisse la place a recherche -> verification ->\n  // controle de la parente -> tactiques, avec de la marge.\n  mcp_max_tours: 8,\n\n  // ---- PERIMETRE D'OUTILS : le modele choisit, on ne choisit pas pour lui --\n  // Le serveur expose dix-huit outils et le modele les decouvre par\n  // `tools/list` ; c'est lui qui decide lesquels appeler et dans quel ordre.\n  // La SELECTION D'OUTIL fait partie de ce que la campagne mesure : restreindre\n  // le perimetre aux seuls outils porteurs d'identifiants rendrait le taux\n  // d'appels pertinents de calculer_metriques.py egal a 100 % par construction,\n  // et cette metrique n'a de sens que si le modele peut appeler autre chose.\n  // Le surcout du bloc de descriptions, relu a chaque tour (environ 2 280\n  // jetons pour dix-sept outils contre 840 pour quatre), est MESURE par le\n  // compteur de jetons, pas suppose.\n  //\n  // Liste vide = tous les outils sauf ceux nommes dans mcp_outils_exclus.\n  mcp_outils: [],\n\n  // Une seule exclusion, et elle n'est pas un choix de perimetre : c'est un\n  // garde-fou de campagne. `mitre_update` retelecharge les deux matrices et\n  // remplace la base en memoire. Appele par le modele au milieu des 126\n  // executions, il changerait la version ATT&CK servie en cours de campagne —\n  // ce que le chapitre 1 interdit (referentiel fige) et que le compteur de\n  // derive de version detecterait trop tard, les lignes deja ecrites etant\n  // alors incomparables. Les dix-sept autres outils sont en lecture seule.\n  mcp_outils_exclus: [\"mitre_update\"],\n\n  // Chapitre 1, section 4.1 : « la phase 2 rejoue la campagne avec le serveur\n  // MCP ». Le premier tour impose donc un appel d'outil (tool_choice: any),\n  // les tours suivants rendent la main au modele (tool_choice: auto) pour\n  // qu'il puisse conclure. Consequence a declarer : le « taux d'utilisation\n  // MCP » devient 100 % par construction et cesse d'etre informatif ; ce sont\n  // le taux d'appels pertinents et le taux de reponses ancrees qui portent\n  // alors l'information. Mettre false pour laisser le modele libre.\n  mcp_forcer_premier_appel: true,\n\n  // Consigne AJOUTEE au prompt systeme quand le MCP est actif, et rien\n  // d'autre : le prompt de phase 1 reste identique au caractere pres, il est\n  // recopie tel quel dans chaque enregistrement pour que la difference soit\n  // verifiable apres coup. Mettre \"\" pour un prompt strictement identique\n  // (le modele decouvre alors les outils par le seul bloc `tools`).\n  mcp_consigne: \"\\n\\nTu disposes d'outils interroges sur une copie locale de MITRE ATT&CK 19.2. Ils font FOI : ne reponds pas de memoire quand un outil peut trancher. Methode attendue : search_techniques avec le parametre matrix correspondant a la matrice indiquee, puis get_technique sur chaque candidat retenu pour verifier la tactique et l'existence de la sous-technique. Le champ `homonymes` d'une reponse signale un nom present dans les deux matrices : lever l'ambiguite avec matrix avant de conclure. Un resultat portant `matched.pivot` est une piste, pas un mapping. Le format de ta reponse finale ne change pas : le meme objet JSON, seul, sans texte autour.\",\n  version_pipeline_mcp: \"5.0-mcp\",\n  version_pipeline: \"4.2-methodo\"\n}}];"
+      },
+      "id": "7de21189-e583-4b67-a2ee-2395a2cae205",
+      "name": "Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $('Configuration').first().json.fichier_dataset }}",
+        "options": {}
+      },
+      "id": "ee266a3c-f4bc-44e8-8e90-f0bc84709e11",
+      "name": "Lire les echantillons",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        928,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "65d4723f-3c4f-4b1d-8689-29861391d8d1",
+      "name": "Extraire les echantillons",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const it = $input.first().json;\nconst f=it.fournisseur, base=it.base_url, cle=it.cle;\nconst model=it.modele, maxtok=it.max_tokens_sortie, temp=it.temperature;\nconst ps=it.prompt_system, pu=it.prompt_user;\n\nconst url = (f==='anthropic') ? base+'/v1/messages' : base+'/chat/completions';\n\n// --- entetes construits ici : plus d'entete vide ni d'entete d'un autre\n// --- fournisseur envoyee a Google (l'ancienne version poussait toujours\n// --- anthropic-version et un x-goog-user-project vide).\nconst entetes = { 'Content-Type': 'application/json' };\nif (f === 'anthropic') { entetes['x-api-key'] = cle; entetes['anthropic-version'] = '2023-06-01'; }\nelse { entetes['Authorization'] = 'Bearer ' + cle; }\nif (f === 'vertex') {\n  if (!it.gcp_project_id) throw new Error(\"gcp_project_id vide : le quota Vertex ne peut etre attribue a aucun projet.\");\n  entetes['x-goog-user-project'] = it.gcp_project_id;   // projet dont le quota est consomme\n}\n\nlet corps, temp_appliquee = temp;\nlet etat_messages = null;\nif (f === 'anthropic') {\n  // PAS de temperature pour Claude. Sur les modeles 4.7 et suivants (dont\n  // claude-opus-4-8 et claude-opus-5), le parametre est deprecie : seule sa\n  // valeur par defaut est acceptee, meme reflexion desactivee. Et des que la\n  // reflexion est active, la temperature doit valoir 1 ou rester absente.\n  // Transmettre 0 fait echouer la requete.\n  // Consequence methodologique : Claude n'est PAS evalue a temperature 0\n  // comme les autres modeles. A declarer dans la methodologie ; c'est aussi\n  // pourquoi sa variance entre les 3 executions sera plus elevee.\n  temp_appliquee = null;\n  const messages0 = [{role:'user', content:pu}];\n  const corpsObj = {model, max_tokens:maxtok, system:ps, messages:messages0};\n  // MCP : les outils sont declares ici, exactement tels que le serveur les\n  // documente. `tool_choice: auto` laisse le modele libre de ne rien appeler,\n  // ce qui est volontaire : forcer un appel biaiserait la mesure.\n  const outils = (it.mcp_actif === true)\n                 ? ($('Normaliser les outils MCP').first().json.outils_mcp || []) : [];\n  if (it.mcp_actif === true && outils.length) {\n    corpsObj.tools = outils;\n    // `any` au premier tour : le modele DOIT consulter le referentiel avant de\n    // repondre, ce qui est la condition meme de la phase 2. Les tours suivants\n    // repassent en `auto` (voir « Integrer les resultats d'outils ») pour qu'il\n    // puisse conclure des qu'il a ce qu'il lui faut.\n    corpsObj.tool_choice = (it.mcp_forcer_premier_appel === true)\n                           ? { type: 'any' } : { type: 'auto' };\n  }\n  corps = JSON.stringify(corpsObj);\n  etat_messages = messages0;\n}\nelse if (f==='openai') {\n  // La temperature n'a jamais ete transmise a OpenAI ici : on le reflete\n  // desormais honnetement dans temperature_appliquee au lieu d'y laisser 0.\n  temp_appliquee = null;\n  corps=JSON.stringify({model,max_completion_tokens:maxtok,messages:[{role:'system',content:ps},{role:'user',content:pu}]});\n}\nelse {\n  // Certains modeles a raisonnement (ex. kimi-k3 en direct) refusent toute\n  // temperature autre que leur defaut -> on omet le champ (sans_temperature).\n  const b = {model, max_tokens:maxtok,\n             messages:[{role:'system',content:ps},{role:'user',content:pu}]};\n  if (it.sans_temperature === true) temp_appliquee = null;\n  else b.temperature = temp;\n  corps=JSON.stringify(b);\n}\n\nreturn [{ json: { ...it, url, entetes: JSON.stringify(entetes), corps,\n  temperature_appliquee: temp_appliquee,\n  tentative: Number(it.tentative || 1),\n  // etat de la boucle d'outils : remis a zero a chaque nouvelle tentative\n  messages_etat: etat_messages, tour: 1, mcp_trace: [],\n  mcp_appels: 0, mcp_ms: 0, mcp_erreurs: 0,\n  usage_cumul: { entree: 0, sortie: 0 },\n  horodatage_debut:new Date().toISOString(), t0_ms:Date.now() } }];\n"
+      },
+      "id": "342cf38e-1652-45c8-95ea-f1f0803ff1c7",
+      "name": "Preparer l'appel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ $json.entetes }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.corps }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": "={{ $json.timeout_appel_ms || 600000 }}"
+        }
+      },
+      "id": "dc7ea3b2-b704-4456-81ce-7ef3b04454e8",
+      "name": "Appel LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2272,
+        1072
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function noeud(nom) { try { return $(nom).first().json; } catch (e) { return null; } }\nconst prep0 = noeud(\"Preparer l'appel\") || {};\nconst suite = noeud(\"Integrer les resultats d'outils\");\n// run_id : sans ce garde-fou, une iteration sans appel d'outil heriterait de\n// la trace MCP de l'iteration precedente, restee en memoire dans le noeud.\nconst prep = (suite && suite.run_id === prep0.run_id)\n             ? { ...prep0, ...suite } : prep0;\nconst cfg  = $('Configuration').first().json;\nconst brut = $input.first().json || {};\nconst horodatage_fin = new Date().toISOString();\nconst latence_ms = Date.now() - prep.t0_ms;\nconst tentative = Number(prep.tentative || 1);\nconst max_tentatives = Number(cfg.max_tentatives || 8);\n\n// --- le noeud HTTP est en fullResponse + neverError : on a le code, les entetes\n// --- et le corps meme en cas d'erreur. Seules les pannes transport levent encore.\nconst panne_transport = brut.error !== undefined && brut.statusCode === undefined;\nconst code = panne_transport ? null : Number(brut.statusCode);\nconst rep  = panne_transport ? {} : (brut.body !== undefined ? brut.body : brut);\nconst entetes_rep = brut.headers || {};\n\nlet erreur_api = null;\nif (panne_transport) {\n  const er = brut.error || {};\n  erreur_api = 'transport - ' + (er.description || er.message || JSON.stringify(er)).toString().slice(0, 300);\n} else if (code >= 400) {\n  const e = (rep && rep.error) || {};\n  erreur_api = code + ' - ' + String(e.message || e.status || JSON.stringify(rep)).slice(0, 300);\n}\n\n// --- combien de temps le serveur nous demande-t-il d'attendre ? ---\nlet delai_serveur_s = null;\nconst ra = entetes_rep['retry-after'] || entetes_rep['Retry-After'];\nif (ra && /^\\d+$/.test(String(ra).trim())) delai_serveur_s = Number(String(ra).trim());\nif (delai_serveur_s === null) {\n  const m = JSON.stringify(rep || {}).match(/\"retryDelay\"\\s*:\\s*\"(\\d+(?:\\.\\d+)?)s\"/);\n  if (m) delai_serveur_s = Math.ceil(Number(m[1]));\n}\n// Moonshot n'envoie NI Retry-After NI retryDelay : le delai est dans le TEXTE\n// du message (\"please try again after N seconds\").\nif (delai_serveur_s === null && erreur_api) {\n  const m2 = erreur_api.match(/try again after (\\d+(?:\\.\\d+)?) seconds?/i);\n  if (m2) delai_serveur_s = Math.max(1, Math.ceil(Number(m2[1])));\n}\n\n// --- erreur transitoire ? (429 quota, 5xx, timeout, coupure reseau) ---\nconst txt_err = (erreur_api || '').toLowerCase();\n// 499 = CANCELLED : connexion fermee avant la reponse (timeout client) ou\n// annulation cote Google en charge. Transitoire dans les deux cas.\n// 504 = DEADLINE_EXCEEDED. Ni l'un ni l'autre n'est une erreur du modele.\nconst transitoire = code === 429 || code === 408 || code === 409 || code === 499 || (code >= 500)\n  || (panne_transport && /etimedout|econnaborted|econnreset|econnrefused|eai_again|und_err|socket hang up|aborted|timeout|deadline|network/i.test(txt_err));\nconst a_reessayer = transitoire && tentative < max_tentatives;\n\nlet texte=null, tin=null, tout=null, fin_raison=null, tokens_raisonnement=null;\nif (prep.fournisseur === 'anthropic') {\n  texte = Array.isArray(rep.content) ? (rep.content.find(c=>c.type==='text')||{}).text : null;\n  tin = rep.usage ? rep.usage.input_tokens : null; tout = rep.usage ? rep.usage.output_tokens : null;\n  fin_raison = rep.stop_reason || null;\n} else {\n  const ch = (rep.choices && rep.choices[0]) ? rep.choices[0] : {};\n  texte = ch.message ? ch.message.content : null;\n  tin = rep.usage ? rep.usage.prompt_tokens : null; tout = rep.usage ? rep.usage.completion_tokens : null;\n  fin_raison = ch.finish_reason || ch.native_finish_reason || null;\n  const det = rep.usage && rep.usage.completion_tokens_details;\n  if (det && det.reasoning_tokens !== undefined && det.reasoning_tokens !== null) {\n    tokens_raisonnement = Number(det.reasoning_tokens);\n  }\n}\n// Troncature : max_tokens epuise (souvent par le raisonnement) avant la fin du\n// JSON. C'est un echec de BUDGET, pas du modele -> statut dedie, a exclure des\n// metriques au meme titre que les erreurs d'infrastructure.\nconst tronque = fin_raison === 'length' || fin_raison === 'max_tokens';\n\n// --- normalisation d'un niveau : UNE seule valeur, sinon format non respecte ---\nconst RE_ID = /(?:TA\\d{4}|T\\d{4}(?:\\.\\d{3})?)/gi;\nlet format_ok = true;\nfunction niveau(v) {\n  if (v === null || v === undefined) return \"\";\n  if (Array.isArray(v)) {\n    if (v.length === 0) return \"\";\n    if (v.length > 1) { format_ok = false; return String(v[0]).trim().toUpperCase(); }\n    v = v[0];\n  }\n  let s = String(v).trim();\n  if (!s) return \"\";\n  if (/^(aucune|aucun|none|n\\/a|null)$/i.test(s)) return \"aucune\";\n  const ids = s.match(RE_ID);\n  if (!ids) { format_ok = false; return s.toUpperCase(); }\n  if (ids.length > 1) { format_ok = false; }\n  return ids[0].toUpperCase();\n}\n\nlet mapping = { tactique:\"\", technique:\"\", sous_technique:\"\" };\nlet element_cite=null, justification=null, statut='ok';\nif (erreur_api) {\n  if (code === 429) statut = 'erreur_quota_429';\n  else if (code === 499) statut = 'erreur_annulee_499';\n  else if (code === 504) statut = 'erreur_deadline_504';\n  else if (panne_transport) statut = /timeout|econnaborted|deadline|aborted/i.test(txt_err)\n                                     ? 'erreur_timeout' : 'erreur_reseau';\n  else statut = 'erreur_api';\n  // une erreur transitoire epuisee n'est PAS une erreur du modele : on la marque\n  // pour pouvoir l'exclure du calcul des metriques et la rejouer.\n  if (transitoire && !a_reessayer) statut += '_abandon';\n}\nelse if (brut.mcp_tours_epuises === true) {\n  // La boucle d'outils n'a pas converge dans le budget de tours : ce n'est\n  // pas une erreur de mapping, l'iteration est exclue des metriques.\n  statut = 'mcp_tours_epuises';\n}\nelse if (!texte) statut = tronque ? 'troncature_budget' : 'reponse_vide';\nelse {\n  let t=texte.trim();\n  const m=t.match(/```(?:json)?\\s*([\\s\\S]*?)```/); if(m) t=m[1].trim();\n  const d=t.indexOf('{'), e=t.lastIndexOf('}'); if(d>=0&&e>d) t=t.slice(d,e+1);\n  try {\n    const p=JSON.parse(t);\n    mapping = { tactique: niveau(p.tactique !== undefined ? p.tactique : p.tactiques),\n                technique: niveau(p.technique !== undefined ? p.technique : p.techniques),\n                sous_technique: niveau(p.sous_technique !== undefined ? p.sous_technique : p.sous_techniques) };\n    element_cite = typeof p.element_cite === 'string' ? p.element_cite\n                 : (Array.isArray(p.elements_cites) ? p.elements_cites.join(' | ') : null);\n    justification = typeof p.justification === 'string' ? p.justification : null;\n    if (mapping.tactique && !/^TA\\d{4}$/.test(mapping.tactique)) format_ok = false;\n    if (mapping.technique && !/^T\\d{4}$/.test(mapping.technique)) format_ok = false;\n    if (mapping.sous_technique && mapping.sous_technique !== 'aucune'\n        && !/^T\\d{4}\\.\\d{3}$/.test(mapping.sous_technique)) format_ok = false;\n    if (!format_ok) statut = 'format_non_respecte';\n  } catch(e2) { statut = tronque ? 'troncature_budget' : 'json_invalide'; }\n}\nif (statut !== 'ok') mapping = { tactique:\"\", technique:\"\", sous_technique:\"\" };\nif (statut === 'mcp_tours_epuises') { /* exclu plus bas des metriques */ }\n\nconst enregistrement = {\n  meta: { campagne:prep.campagne, version_pipeline:prep.version_pipeline,\n          run_id:prep.run_id, modele:prep.modele, fournisseur:prep.fournisseur,\n          log_id:prep.log_id, zone:prep.zone, source:prep.source, matrice:prep.matrice,\n          numero_run:prep.numero_run, mcp_actif:prep.mcp_actif,\n          temperature_appliquee: prep.temperature_appliquee === undefined\n                                 ? null : prep.temperature_appliquee,\n          horodatage_debut:prep.horodatage_debut, horodatage_fin, latence_ms,\n          statut, erreur_api, code_http: code, fin_raison, tentative,\n          erreur_infrastructure: transitoire && !a_reessayer,\n          // --- trace MCP : tout ce qu'il faut pour expliquer un ecart avec\n          // --- la campagne de phase 1 sans rejouer la campagne.\n          mcp: prep.mcp_actif === true ? {\n            serveur: prep.mcp_serveur || null,\n            outils_exposes: prep.mcp_outils_exposes || [],\n            tours: Number(prep.tour || 1),\n            tours_epuises: brut.mcp_tours_epuises === true,\n            appels_outils: Number(prep.mcp_appels || 0),\n            appels_en_erreur: Number(prep.mcp_erreurs || 0),\n            latence_mcp_ms: Number(prep.mcp_ms || 0),\n            outils_appeles: (prep.mcp_trace || []).map(t => t.outil),\n            matrices_demandees: (prep.mcp_trace || [])\n              .filter(t => t.outil === 'search_techniques' || t.outil === 'get_datasources')\n              .map(t => t.matrix),\n            avertissements: Array.from(new Set(\n              (prep.mcp_trace || []).reduce((a, t) => a.concat(t.avert || []), []))),\n            forcer_premier_appel: prep.mcp_forcer_premier_appel === true,\n            ids_vus: Array.from(new Set((prep.mcp_trace || [])\n              .reduce((a, t) => a.concat(t.ids_retournes || []), []))).slice(0, 200),\n          } : null,\n          prompt_system_mcp: prep.prompt_system_mcp || \"\",\n          // vrai des que l'iteration ne mesure PAS la competence du modele :\n          // panne d'infrastructure abandonnee OU budget de sortie epuise.\n          // calculer_metriques.py compte sinon ces cas en faux negatifs.\n          exclure_des_metriques: (transitoire && !a_reessayer) || tronque\n                                 || brut.mcp_tours_epuises === true },\n  mapping, element_cite, justification,\n  // ---- champs RACINE lus par calculer_metriques.py (section « serveur MCP »).\n  // `appels_mcp` porte un objet par appel d'outil, dans l'ordre chronologique :\n  //   outil / arguments / ok / inconnu / ids_retournes, plus tour, matrix et\n  //   avert, additifs et ignores par le script d'origine.\n  // `tours` compte les allers-retours ; `db_version_mcp` permet au script de\n  //   detecter une derive entre le referentiel servi et la version figee.\n  appels_mcp: prep.mcp_actif === true ? (prep.mcp_trace || []) : [],\n  tours: Number(prep.tour || 1),\n  db_version_mcp: prep.mcp_actif === true\n                  ? ((prep.mcp_serveur || {}).db_version || null) : null,\n  // Avec la boucle d'outils, l'appel HTTP final ne porte que le DERNIER tour.\n  // Les jetons factures sont la somme de tous les tours : c'est ce total qui\n  // doit etre compare au cout de la campagne sans MCP.\n  usage: { tokens_entree: (Number((prep.usage_cumul||{}).entree || 0) + Number(tin || 0)) || tin,\n           tokens_sortie: (Number((prep.usage_cumul||{}).sortie || 0) + Number(tout || 0)) || tout,\n           tokens_raisonnement,\n           tokens_entree_dernier_tour: tin, tokens_sortie_dernier_tour: tout },\n  reponse_brute: texte ? texte.slice(0,4000) : null\n};\n\n// on n'accumule la statistique que pour les enregistrements DEFINITIFS\nif (!a_reessayer) {\n  const sd = $getWorkflowStaticData('global');\n  sd.stats = sd.stats || [];\n  sd.stats.push({ modele: prep.modele, log_id: prep.log_id, statut, latence_ms,\n                  tentative, jetons: (tin||0) + (tout||0) });\n}\n\nreturn [{ json: { enregistrement, fichier_sortie: prep.fichier_sortie,\n                  a_reessayer, tentative, delai_serveur_s } }];\n"
+      },
+      "id": "1c9f5d56-84e9-4634-ada2-74a5b96d9d0a",
+      "name": "Assembler l'enregistrement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j=$input.item.json;\nreturn [{ json: { ligne: JSON.stringify(j.enregistrement)+\"\\n\", fichier_sortie: j.fichier_sortie } }];"
+      },
+      "id": "311ea602-f6e9-43fa-9932-3797f5efb95b",
+      "name": "Ligne JSONL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "ligne",
+        "options": {
+          "fileName": "={{ $('Ligne JSONL').item.json.fichier_sortie }}"
+        }
+      },
+      "id": "8c07b710-9fdd-413e-a76c-c4d2152118d7",
+      "name": "Convertir en fichier",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        4240,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Ligne JSONL').item.json.fichier_sortie }}",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "fc539e26-7ae3-464a-a034-ffe94fc3e4ca",
+      "name": "Ecrire (ajout) dans le JSONL",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $(\"Preparer l'appel\").first().json.pause_apres_s || $('Configuration').first().json.pause_entre_appels_s || 1 }}"
+      },
+      "id": "5945a721-c256-4a84-9d56-1d6bb7cbbe61",
+      "name": "Pause anti-quota",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4544,
+        736
+      ],
+      "webhookId": "9c4e2f10-6b3d-4e8a-b1f5-2d7c8a9e0f11"
+    },
+    {
+      "parameters": {
+        "jsCode": "// L'ancienne version lisait $('Assembler l'enregistrement').all(), qui ne renvoie\n// que la DERNIERE execution du noeud : la synthese ne portait que sur 1 iteration.\n// On accumule desormais au fil de la boucle (repli sur .all() si la static data\n// n'est pas disponible).\nconst cfg = $('Configuration').first().json;\nconst sd  = $getWorkflowStaticData('global');\nlet stats = Array.isArray(sd.stats) ? sd.stats : [];\nif (!stats.length) {\n  try {\n    stats = $('Assembler l\\'enregistrement').all()\n      .map(x => x.json.enregistrement).filter(Boolean)\n      .map(e => ({ modele:e.meta.modele, log_id:e.meta.log_id, statut:e.meta.statut,\n                   latence_ms:e.meta.latence_ms, tentative:e.meta.tentative || 1,\n                   jetons:(e.usage.tokens_entree||0)+(e.usage.tokens_sortie||0) }));\n  } catch(e) { stats = []; }\n}\n\nconst parModele = {};\nfor (const s of stats) {\n  const p = parModele[s.modele] = parModele[s.modele] ||\n    { iterations:0, ok:0, format_non_respecte:0, abandons_infrastructure:0,\n      autres_statuts:{}, tentatives_totales:0,\n      latence_ms_moyenne:0, jetons_moyens:0, _lat:0, _jet:0 };\n  p.iterations++;\n  p.tentatives_totales += s.tentative || 1;\n  if (s.statut === 'ok') p.ok++;\n  else if (s.statut === 'format_non_respecte') p.format_non_respecte++;\n  else if (/_abandon$/.test(s.statut)) p.abandons_infrastructure++;\n  else p.autres_statuts[s.statut] = (p.autres_statuts[s.statut] || 0) + 1;\n  p._lat += s.latence_ms || 0;\n  p._jet += s.jetons || 0;\n}\nfor (const m in parModele) {\n  const p = parModele[m];\n  p.latence_ms_moyenne = Math.round(p._lat / Math.max(p.iterations, 1));\n  p.jetons_moyens      = Math.round(p._jet / Math.max(p.iterations, 1));\n  delete p._lat; delete p._jet;\n}\n\nconst echantillons = new Set(stats.map(s => s.log_id));\nconst abandons = stats.filter(s => /_abandon$/.test(s.statut)).length;\n\n// on vide le cache pour que la campagne suivante reparte propre\nsd.stats = []; delete sd.jeton_gcp; delete sd.jeton_expire_ms;\n\nreturn [{ json: {\n  campagne_terminee: true,\n  total_iterations: stats.length,\n  echantillons_couverts: echantillons.size,\n  runs_par_echantillon: cfg.runs_par_question,\n  mcp_actif: cfg.mcp_actif === true,\n  abandons_infrastructure: abandons,\n  avertissement: abandons\n    ? abandons + \" iteration(s) abandonnee(s) apres \" + (cfg.max_tentatives||8)\n      + \" tentatives (statut *_abandon, erreur_infrastructure=true). A EXCLURE du\"\n      + \" calcul des metriques et a rejouer : ce n'est pas une erreur du modele.\"\n    : \"aucune iteration perdue pour cause d'infrastructure\",\n  par_modele: parModele,\n  fichiers_resultats: cfg.dossier_sortie + \"/resultats__*.jsonl\",\n  suite: \"uv run calculer_metriques.py \\\"\" + cfg.dossier_sortie\n         + \"/resultats__*.jsonl\\\" --verite verite_terrain.jsonl\"\n}}];\n"
+      },
+      "id": "f77c9825-fbab-4e17-9134-d0de72707e50",
+      "name": "Synthese de campagne",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "8b2b222f-5a7a-4b29-be1b-a9098f9a0931",
+      "name": "Boucle",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1584,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.fournisseur }}",
+              "value2": "vertex"
+            }
+          ]
+        }
+      },
+      "id": "87b6fb67-9a8c-487d-a90f-ca41831eb6e7",
+      "name": "Aiguillage Vertex",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const it = $('Verifier cache jeton').first().json;\nconst tok = $json.access_token;\nif (!tok) throw new Error('Jeton non obtenu — reponse OAuth : ' + JSON.stringify($json).slice(0, 300));\n\n// mise en cache pour les iterations suivantes\nconst sd = $getWorkflowStaticData('global');\nsd.jeton_gcp = tok;\nsd.jeton_expire_ms = Date.now() + (Number($json.expires_in || 3600) * 1000);\n\nreturn [{ json: { ...it, cle: tok, jeton_en_cache: true } }];\n"
+      },
+      "id": "6e013302-722f-412f-bfab-9bac71576ca1",
+      "name": "Injecter le jeton",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $('Configuration').first().json.fichier_adc }}",
+        "options": {}
+      },
+      "id": "bc97f82c-0e04-4b11-b3f2-525506b2fe68",
+      "name": "Lire identifiants gcloud",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2592,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "217684c8-c1d5-42b8-a49e-535007fc1869",
+      "name": "Extraire identifiants gcloud",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2768,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let j = $input.first().json;\nlet c = null;\nfor (const cand of [j, j && j.data, j && j.json]) {\n  if (cand && cand.refresh_token && cand.client_id) { c = cand; break; }\n}\nif (!c) { const b = j && (j.data || j.text);\n  if (typeof b === 'string') { try { const p = JSON.parse(b); if (p.refresh_token) c = p; } catch(e){} } }\nif (!c) throw new Error(\"Identifiants gcloud introuvables. Lancez une fois dans le terminal : gcloud auth application-default login\");\nreturn [{ json: { client_id: c.client_id, client_secret: c.client_secret, refresh_token: c.refresh_token } }];"
+      },
+      "id": "6a22d533-ab02-4bc9-8971-fa3e267e0d87",
+      "name": "Normaliser identifiants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.client_id }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $json.client_secret }}"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d6eee195-11d1-4087-ba78-4523c94a4ff2",
+      "name": "Obtenir jeton",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        480
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Le jeton OAuth gcloud vit ~1 h. L'ancien workflow en redemandait un a CHAQUE\n// iteration (126 appels a oauth2.googleapis.com pour rien, et un point de panne\n// sans gestion d'erreur). On le garde en cache pour la duree de la campagne.\nconst it = $input.first().json;\nconst sd = $getWorkflowStaticData('global');\nconst marge_ms = 5 * 60 * 1000;            // on renouvelle 5 min avant l'expiration\nconst valide = !!(sd.jeton_gcp && sd.jeton_expire_ms\n                  && (sd.jeton_expire_ms - Date.now()) > marge_ms);\nreturn [{ json: { ...it, cle: valide ? sd.jeton_gcp : it.cle, jeton_en_cache: valide } }];\n"
+      },
+      "id": "edf71266-a45d-4ff6-b51f-160bd82d0026",
+      "name": "Verifier cache jeton",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.jeton_en_cache }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "47cdcf1d-48aa-4ae4-8a13-fa1a0dc4b570",
+      "name": "Jeton en cache ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.a_reessayer }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "712e1d55-b86d-4965-a029-49bead9c7b18",
+      "name": "Nouvelle tentative ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3792,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Backoff exponentiel avec jitter, et surtout : on ECOUTE le serveur.\n// Vertex renvoie souvent un retryDelay (ex. 55s) ou un entete Retry-After ;\n// l'ancien retry n8n (5 s fixes) les ignorait et relancait dans le vide.\nconst prep = $('Preparer l\\'appel').first().json;\nconst cfg  = $('Configuration').first().json;\nconst info = $input.first().json;\n\nconst tentative = Number(info.tentative || 1) + 1;\nconst base    = Number(cfg.backoff_base_s || 15);\nconst plafond = Number(cfg.backoff_max_s || 60);\n\nlet attente = Number(info.delai_serveur_s || 0);\nif (!attente || !isFinite(attente)) attente = base * Math.pow(2, tentative - 2);\nattente = Math.round(attente * (1 + Math.random() * 0.3));   // jitter : desynchronise les rafales\nattente = Math.max(1, Math.min(attente, plafond));           // plafond < 65 s\n\n// on repart de l'item d'origine ; url / entetes / corps / horodatages seront\n// recalcules par \"Preparer l'appel\", et le jeton par \"Verifier cache jeton\".\n// L'etat de la boucle d'outils est jete avec le reste : une nouvelle\n// tentative repart d'une conversation vierge, sinon le modele recevrait\n// l'historique d'outils d'un appel qui a echoue.\nconst { url, entetes, corps, t0_ms, horodatage_debut,\n        messages_etat, mcp_trace, tour, mcp_appels, mcp_ms, mcp_erreurs,\n        usage_cumul, contenu_assistant, demandes_outils, corps_mcp,\n        entetes_mcp, t_mcp0, ...origine } = prep;\nreturn [{ json: { ...origine, tentative, attente_backoff_s: attente } }];\n"
+      },
+      "id": "d910efad-e318-48eb-882b-15f25c54e576",
+      "name": "Calcul du backoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3536,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.attente_backoff_s }}"
+      },
+      "id": "a7b8dfbd-bc29-4fe9-adb5-f598b3bbb658",
+      "name": "Attente backoff",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3920,
+        1168
+      ],
+      "webhookId": "32006dd5-9179-437b-8c65-0c52e517e4b1"
+    },
+    {
+      "parameters": {
+        "content": "# Evaluation multi-LLM  avec MCP",
+        "height": 200,
+        "width": 1240,
+        "color": 7
+      },
+      "id": "0847e69f-d47d-404f-ab00-333d543789ed",
+      "name": "_titre",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Lancement et reglages\n\n Ouvrir le noeud `Configuration` :\n\n- les 6 cles d'API\n- `MODELE_FORCE` : laisser `\"\"` — ce sont les cases `actif:true` de\n  `Preparer les iterations` qui choisissent le modele\n- `mcp_version_attendue` : version du serveur MCP exigee\n- `runs_par_question`, `limite_samples`\n- `max_tokens_sortie` : 32768, identique pour tous\n- les delais (pause, backoff, timeout)\n\n",
+        "height": 416,
+        "width": 496,
+        "color": 4
+      },
+      "id": "8af9a662-03db-4001-b23d-3daea162fd8f",
+      "name": "_1_lancement",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. Lecture du dataset (42 échantillons)\n\n\nLes champs `zone`, `matrice` et `source` sont portes par les lignes du corpus lui-meme.\n",
+        "height": 416,
+        "width": 400,
+        "color": 5
+      },
+      "id": "77bc26fa-1d62-4173-85bd-89a1765eea44",
+      "name": "_2_corpus",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        848,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. Depliage\n\nConstruit la liste des appels a faire :\n\n**echantillon x run x modele**.\n\nRefuse de demarrer si un modele actif n'a pas d'identifiant ou de cle.",
+        "height": 416,
+        "color": 5
+      },
+      "id": "a88fe41a-1cde-4300-be1e-7473fd3609f4",
+      "name": "_3_iterations",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. Boucle\n\nTraite **un appel a la fois** (lot de 1).\n\n",
+        "height": 420,
+        "width": 220,
+        "color": 6
+      },
+      "id": "cc79a331-0366-41f4-aabb-be52c36c9df7",
+      "name": "_4_boucle",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5. Bloc Vertex - Jeton Google\n\nPour la méthode B : pour utiliser des crédits Google Cloud on passe par vertex (authentification et configuration requise)\n\nLe bloc analyse la présent du jeton d'authentification Google pour les appels des modèles LLMs de Google. ",
+        "height": 464,
+        "width": 1108,
+        "color": 3
+      },
+      "id": "4ecd9099-2620-4746-a5eb-f46e523dc924",
+      "name": "_5_vertex",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 6. Appel au modele\n\n`Preparer l'appel` fabrique l'URL, les en-tetes et le corps **selon le fournisseur** : Anthropic et OpenAI n'ont pas le meme schema, et certains modeles refusent le parametre `temperature`.\n\n`Appel LLM` est regle en `fullResponse` + `neverError` : on recupere le code HTTP, les en-tetes et le corps meme en cas d'erreur, au lieu de tout perdre dans une exception. C'est ce qui rend le backoff possible.",
+        "height": 400,
+        "width": 1134,
+        "color": 4
+      },
+      "id": "5d84c9e9-d7f4-444b-b011-2453739cdaf8",
+      "name": "_6_appel",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 7. Jugement des réponses\n\nExtrait le JSON, normalise les trois niveaux ATT&CK, et attribue un **statut** : `ok`, `format_non_respecte`, `json_invalide`, `troncature_budget`, `erreur_quota_429`, `erreur_annulee_499`...\n\nDistingue ce qui vient **du modele** de ce qui vient **de l'infrastructure**. Le drapeau `exclure_des_metriques` marque les secondes : elles ne doivent pas compter comme des erreurs du modele.",
+        "height": 404,
+        "width": 436,
+        "color": 6
+      },
+      "id": "f93b2497-6531-4573-88e5-05bd5ccfae3d",
+      "name": "_7_jugement",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3504,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 8. Reprise en cas d'erreur transitoire\n\ncode d'erreur 429, 499, 504, timeout, coupure reseau : on **reessaie** au lieu d'abandonner les 3 éxécutions par échantillon. \n\nOn respecte d'abord le delai demande par le serveur (`Retry-After`, `retryDelay`, ou le texte du message chez Moonshot). A defaut, backoff exponentiel avec jitter, plafonne a 60 s.\n\nApres `max_tentatives`, l'appel est abandonne et marque comme tel.",
+        "height": 330,
+        "width": 548,
+        "color": 3
+      },
+      "id": "9f65caef-064b-4624-848c-c5bea47ad3be",
+      "name": "_8_backoff",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3520,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 9. Ecriture et pause\n\nUne ligne JSON par appel, ajoutee au fichier du modele : `resultats/resultats__<modele>.jsonl`.\n\nUn fichier par modele, donc aucune collision quand plusieurs campagnes tournent en parallele. un plantage en cours de campagne ne fait perdre que l'appel en cours. \n\nPuis la pause anti-quota, propre a chaque modele (`pause_apres_s`), et retour a la boucle. ",
+        "height": 452,
+        "width": 788,
+        "color": 5
+      },
+      "id": "03a1ed23-75df-4bcf-9195-34bd87a62cfa",
+      "name": "_9_ecriture",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4000,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deplie (echantillon x run x modele) conformement a la methodologie :\n// 3 executions par echantillon, une seule prediction par niveau attendue,\n// zone et matrice communiquees au modele.\nconst config = $('Configuration').first().json;\nconst K = config.CLES || {};\nconst AGG = config.AGG_BASE || \"https://api.deepinfra.com/v1/openai\";\n\n// ==== LES MODELES EVALUÉS ======== \n\n// Veillez mettre sur actif:true les modèles que vous souhaitez évaluer\n\n\nconst MODELES = [\n  //Claude\n  { actif:false,  fournisseur:\"anthropic\", modele:\"claude-opus-4-8\",\n    base_url:\"https://api.anthropic.com\", cle:K.anthropic },\n  { actif:false, fournisseur:\"anthropic\", modele:\"claude-sonnet-5\",\n    base_url:\"https://api.anthropic.com\", cle:K.anthropic },\n  \n  //ChatGPT\n  { actif:false, fournisseur:\"openai\", modele:\"gpt-5.6-sol\",\n    base_url:\"https://api.openai.com/v1\", cle:K.openai },\n  { actif:false, fournisseur:\"openai\", modele:\"gpt-5.6-luna\",\n    base_url:\"https://api.openai.com/v1\", cle:K.openai },\n  \n  // GEMINI \n  //methode A (Vertex AI) : jeton gcloud injecté automatiquement\n  { actif:false, fournisseur:\"vertex\", modele:\"google/gemini-3.1-pro-preview\",\n    base_url:\"https://aiplatform.googleapis.com/v1/projects/\" + (config.gcp_project_id||\"PROJET_MANQUANT\") + \"/locations/global/endpoints/openapi\",\n    cle:\"(jeton gcloud injecte automatiquement a l'execution)\" },\n  { actif:false, fournisseur:\"vertex\", modele:\"google/gemini-3.8-flash\",\n    base_url:\"https://aiplatform.googleapis.com/v1/projects/\" + (config.gcp_project_id||\"PROJET_MANQUANT\") + \"/locations/global/endpoints/openapi\",\n    cle:\"(jeton gcloud injecte automatiquement a l'execution)\" },\n  \n  //methode B (cle AI Studio) : decommenter et passer A en actif:false\n  // { actif:true, fournisseur:\"google\", modele:\"gemini-3.1-pro-preview\",\n  //   base_url:\"https://generativelanguage.googleapis.com/v1beta/openai\", cle:K.google },\n  //{ actif:true, fournisseur:\"google\", modele:\"gemini-3.8-flash\",\n  //   base_url:\"https://generativelanguage.googleapis.com/v1beta/openai\", cle:K.google },\n\n  \n  //  // ==== OPEN-WEIGHT ====\n  \n  //Kimi\n  // KIMI EN DIRECT (platform.moonshot.ai). Modeles a raisonnement :\n  //  - temperature REFUSEE (400 \"only 1 is allowed\") -> sans_temperature:true ;\n  //  - palier d'entree du compte : 3 req/min et 1 requete simultanee\n  //    -> pause_apres_s: 21 (recharger le compte pour monter de palier).\n  // Identifiants SANS prefixe et en minuscules ; verifier la liste vivante :\n  //    GET https://api.moonshot.ai/v1/models\n  //  - K3 raisonne TOUJOURS (reasoning_effort=max par defaut) et la trace de\n  //    raisonnement partage le meme budget que la reponse. Le plafond commun\n  //    de 32768 (noeud Configuration) lui laisse la place necessaire.\n  { actif:false, fournisseur:\"compat\", modele:\"kimi-k3\",\n    base_url:\"https://api.moonshot.ai/v1\", cle:K.kimi,\n    sans_temperature:true,\n\n    // >>>>>>>>>>>> PALIER MOONSHOT — LA SEULE LIGNE A CHANGER <<<<<<<<<<<<\n    // Compte NON recharge = palier d'entree : 3 requetes/minute et 1 requete\n    // simultanee. Il faut donc 21 s entre deux appels pour eviter les 429.\n    pause_apres_s: 21,\n    // APRES AVOIR HETE DU CREDIT : il suffit de DECOMMENTER la ligne suivante.\n    // (inutile de commenter celle du dessus : en JavaScript, la derniere\n    //  valeur d'une meme cle l'emporte). Campagne environ 7x plus rapide.\n    // pause_apres_s: 3,\n    },\n\n  \n  //DEEPSEEK \n  { actif:false, fournisseur:\"compat\", modele:\"deepseek-v4-pro\",\n    base_url:\"https://api.deepseek.com/v1\", cle:K.deepseek, pause_apres_s:2 },\n  { actif:false, fournisseur:\"compat\", modele:\"deepseek-v4-flash\",\n    base_url:\"https://api.deepseek.com/v1\", cle:K.deepseek, pause_apres_s:2 },\n\n  //QWEEN\n  { actif:false, fournisseur:\"compat\", modele:\"qwen3.8-2.4t-a95b\",\n    base_url:\"https://dashscope-intl.aliyuncs.com/compatible-mode/v1\", cle:K.qwen,\n    pause_apres_s:2 },\n];\n\nconst aRemplir = actifs => actifs.filter(m => /^A_REMPLIR|^COLLER_/.test(String(m.modele))\n                                            || /^COLLER_/.test(String(m.cle||'')));\n// Le prompt de phase 1 est repris SANS AUCUNE modification ; la consigne\n// d'outils, si elle est renseignee, est ajoutee a la suite. Les deux morceaux\n// sont recopies separement dans chaque enregistrement, de sorte que la seule\n// difference entre les deux campagnes soit lisible dans le JSONL.\nconst PS_BASE = config.prompt_system;\nconst PS_MCP  = (config.mcp_actif === true) ? String(config.mcp_consigne || '') : '';\nconst PS = PS_BASE + PS_MCP;\nconst OUTILS_MCP = $('Normaliser les outils MCP').first().json.outils_mcp || [];\nconst MCP_SERVEUR = $('Normaliser les outils MCP').first().json.mcp_serveur || null;\nconst horodatage_campagne = new Date().toISOString();\nlet actifs = MODELES.filter(m => m.actif !== false);\nif (config.modele_force) {\n  actifs = MODELES.filter(m => m.modele === config.modele_force);\n  if (!actifs.length) {\n    throw new Error('MODELE_FORCE = \"' + config.modele_force + '\" ne correspond a aucune'\n      + ' entree de MODELES. Valeurs possibles : '\n      + MODELES.map(m => m.modele).join(', '));\n  }\n  // Garde-fou : MODELE_FORCE ignore les cases actif. Un modele force mais\n  // marque actif:false est presque toujours une valeur oubliee d'une campagne\n  // precedente : elle relancerait ce modele et dupliquerait ses run_id.\n  if (actifs[0].actif === false) {\n    throw new Error('MODELE_FORCE = \"' + config.modele_force + '\" vise un modele '\n      + 'marque actif:false. Vider MODELE_FORCE dans Configuration (les cases '\n      + 'actif:true decident), ou passer ce modele a actif:true.');\n  }\n}\nif (!actifs.length) {\n  throw new Error(\"Aucun modele actif : passer au moins un modele a actif:true \"\n    + \"dans « Preparer les iterations ».\");\n}\nconst manquants = aRemplir(actifs);\nif (manquants.length) {\n  throw new Error(\"Modele(s) non configure(s) : \"\n    + manquants.map(m => m.modele).join(', ')\n    + \" — renseigner l'identifiant et la cle avant de lancer la campagne.\");\n}\nif (config.mcp_actif === true) {\n  const nonAnthropic = actifs.filter(m => m.fournisseur !== 'anthropic');\n  if (nonAnthropic.length) {\n    throw new Error(\"mcp_actif=true n'est implemente que pour l'API Messages \"\n      + \"d'Anthropic. Modele(s) incompatible(s) : \"\n      + nonAnthropic.map(m => m.modele).join(', ')\n      + \". Mettre mcp_actif a false, ou ne garder qu'un modele Anthropic.\");\n  }\n  if (!OUTILS_MCP.length) {\n    throw new Error(\"Aucun outil MCP charge : le noeud « Normaliser les outils \"\n      + \"MCP » n'a rien renvoye alors que mcp_actif vaut true.\");\n  }\n}\nconst limite = Number(config.limite_samples || 0);\n\n// ---- 1. echantillons : un item de texte par fichier S###.jsonl ----\n// zone / matrice / source sont portees par les lignes de l'echantillon : le\n// pipeline n'a jamais besoin de la verite de terrain, qui reste hors de n8n-files.\nconst textes = $input.all().map(x => {\n  const j = x.json || {};\n  return j.data || j.text || j.content || j.string || '';\n}).filter(t => typeof t === 'string' && t.trim());\n\nlet samples = [];\nconst incomplets = [];\nfor (const texte of textes) {\n  const lignes = texte.split('\\n').filter(l => l.trim());\n  let log_id=null, zone=null, matrice=null, source=null;\n  const logs = [];\n  for (const l of lignes) {\n    let o; try { o = JSON.parse(l); } catch(e) { continue; }\n    if (!log_id && o.id_journal) log_id = String(o.id_journal).split('-')[0];\n    if (!zone && o.zone) zone = o.zone;\n    if (!matrice && o.matrice) matrice = o.matrice;\n    if (!source && o.source) source = o.source;\n    const c = o.contenu;\n    let txt;\n    if (Array.isArray(c)) txt = c.join(' | ');\n    else if (c && typeof c === 'object') txt = JSON.stringify(c);\n    else txt = String(c === undefined ? l : c);\n    logs.push('[' + (o.source || 'log') + '] ' + txt);\n  }\n  if (!logs.length) continue;\n  if (log_id && zone && matrice) samples.push({ log_id, zone, matrice, source: source || 'log', logs: logs.join('\\n') });\n  else incomplets.push(log_id || '(identifiant absent)');\n}\nif (incomplets.length) {\n  throw new Error(\"Echantillon(s) sans zone/matrice/identifiant : \" + incomplets.join(', ')\n    + \" — regenerer le corpus avec dataset/preparer_dataset.py.\");\n}\nsamples.sort((a,b) => String(a.log_id).localeCompare(String(b.log_id)));\nif (limite > 0) samples = samples.slice(0, limite);\nif (!samples.length) {\n  throw new Error(\"Aucun echantillon lu depuis \" + config.fichier_dataset\n    + \" — verifier que preparer_dataset.py a bien publie le corpus dans n8n-files.\");\n}\n\n// ---- 3. deplier echantillon x run x modele ----\nconst LIB_ZONE = { TI: \"TI (systemes d'information)\", TO: \"TO (systemes industriels)\" };\nconst LIB_MATRICE = { enterprise: \"MITRE ATT&CK Enterprise\", ics: \"MITRE ATT&CK for ICS\" };\nconst items = [];\nfor (const s of samples) {\n  const pu = \"Zone : \" + (LIB_ZONE[s.zone] || s.zone)\n           + \"\\nMatrice a utiliser : \" + (LIB_MATRICE[s.matrice] || s.matrice)\n           + \"\\nSource de journalisation : \" + s.source\n           + \"\\n\\nJournaux a analyser :\\n\" + s.logs;\n  for (let r=0; r<config.runs_par_question; r++) {\n    const numero_run = (config.numero_run_depart||1) + r;\n    for (const M of actifs) {\n      items.push({ json: {\n        temperature: config.temperature,\n        max_tokens_sortie: Number(M.max_tokens_sortie || config.max_tokens_sortie),\n        timeout_appel_ms: config.timeout_appel_ms || 600000,\n        version_pipeline: (config.mcp_actif === true ? (config.version_pipeline_mcp || '5.0-mcp') : config.version_pipeline), campagne: 'eval-ti-to',\n        horodatage_campagne,\n        // un fichier par modele : le slug neutralise les \"/\" et les \".\" des\n        // identifiants (google/gemini-3.8-flash, Qwen/Qwen3.8-2.4T-A95B...)\n        fichier_sortie: config.dossier_sortie + '/resultats__'\n                        + M.modele.replace(/[^A-Za-z0-9._-]+/g, '_')\n                        + (config.suffixe_sortie || '') + '.jsonl',\n        gcp_project_id: config.gcp_project_id, mcp_actif: config.mcp_actif === true,\n        mcp_url: config.mcp_url, mcp_max_tours: Number(config.mcp_max_tours || 8),\n        mcp_timeout_ms: Number(config.mcp_timeout_ms || 120000),\n        mcp_forcer_premier_appel: config.mcp_forcer_premier_appel === true,\n        // Le bloc `tools` n'est PAS recopie dans les items : il pese 3,3 ko et\n        // serait retenu par n8n pour chaque item de chaque noeud de la boucle\n        // (environ 5 Mo sur une campagne de 126 iterations, en plus de\n        // l'historique de conversation). Il est relu au besoin depuis le\n        // noeud « Normaliser les outils MCP », qui n'a tourne qu'une fois.\n        mcp_serveur: MCP_SERVEUR,\n        mcp_outils_exposes: OUTILS_MCP.map(o => o.name),\n        prompt_system: PS, prompt_system_base: PS_BASE, prompt_system_mcp: PS_MCP,\n        prompt_user: pu,\n        fournisseur: M.fournisseur, modele: M.modele, base_url: M.base_url, cle: M.cle,\n        sans_temperature: M.sans_temperature === true,\n        pause_apres_s: Number(M.pause_apres_s || config.pause_entre_appels_s || 1),\n        log_id: s.log_id, zone: s.zone, source: s.source, matrice: s.matrice, numero_run,\n        max_tentatives: config.max_tentatives || 8, tentative: 1,\n        run_id: M.modele + '__' + s.log_id + '__run' + numero_run\n      }});\n    }\n  }\n}\nreturn items;"
+      },
+      "id": "6dfad49c-1d87-4bb2-b0d1-ed96944c77cb",
+      "name": "Preparer les iterations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.mcp_sonde }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        128,
+        320
+      ],
+      "id": "084de84b-507c-49f7-999b-ce2ac7a506f2",
+      "name": "Verifier le serveur MCP",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// La sonde /healthz repond sans authentification et sans effet de bord :\n// c'est le moyen le plus court de distinguer « serveur eteint » de\n// « serveur demarre mais base ATT&CK incomplete ».\nconst cfg = $('Configuration').first().json;\nif (cfg.mcp_actif !== true) return [{ json: cfg }];\nconst s = $input.first().json || {};\nif (!s || s.status !== 'ok') {\n  throw new Error(\"Sonde MCP muette ou anormale sur \" + cfg.mcp_sonde\n    + \" — reponse : \" + JSON.stringify(s).slice(0, 300));\n}\nif (s.ready !== true) {\n  throw new Error(\"Serveur MCP demarre mais base ATT&CK incomplete (ready=false). \"\n    + \"Lancer d'abord : uv run mcp_mitre.py --test\");\n}\nif (cfg.mcp_version_attendue && s.version !== cfg.mcp_version_attendue) {\n  throw new Error(\"Serveur MCP en version \" + s.version + \", la campagne exige \"\n    + cfg.mcp_version_attendue + \" (Configuration, mcp_version_attendue). Tous \"\n    + \"les modeles compares doivent etre servis par la meme version.\");\n}\nreturn [{ json: cfg }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        336
+      ],
+      "id": "6aecd3b5-50de-4631-b23b-316afeeda09b",
+      "name": "Controler la sonde MCP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.mcp_url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify({\"Content-Type\":\"application/json\",\"Accept\":\"application/json\"}) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({jsonrpc:\"2.0\",id:\"tools\",method:\"tools/list\"}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": "={{ $json.mcp_timeout_ms || 120000 }}"
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        320
+      ],
+      "id": "44eceb6f-ee83-40b5-abd4-699868f188fa",
+      "name": "Lister les outils MCP",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convertit tools/list (MCP) en bloc `tools` de l'API Messages d'Anthropic.\n// Les deux formats partagent le meme JSON Schema : seul le nom du champ\n// change (inputSchema -> input_schema). Aucune description n'est reecrite,\n// pour que ce soit bien la documentation du serveur qui pilote le modele.\nconst cfg = $('Configuration').first().json;\nif (cfg.mcp_actif !== true) {\n  return [{ json: { ...cfg, outils_mcp: [], mcp_serveur: null } }];\n}\n\nconst brut = $input.first().json || {};\nif (brut.error !== undefined && brut.statusCode === undefined) {\n  throw new Error(\"Serveur MCP injoignable sur \" + cfg.mcp_url + \" (\"\n    + (brut.error.message || brut.error.code || 'erreur transport') + \"). \"\n    + \"Demarrer : uv run mcp_mitre.py --http   puis verifier \" + cfg.mcp_sonde\n    + \". Depuis n8n en Docker, remplacer 127.0.0.1 par host.docker.internal.\");\n}\nif (Number(brut.statusCode) !== 200) {\n  throw new Error(\"Serveur MCP : HTTP \" + brut.statusCode + \" sur \" + cfg.mcp_url);\n}\nconst rep = brut.body || {};\nif (rep.error) throw new Error(\"tools/list a echoue : \" + JSON.stringify(rep.error));\nconst bruts = (rep.result && rep.result.tools) || [];\nif (!bruts.length) throw new Error(\"tools/list n'a renvoye aucun outil.\");\n\nconst voulus = Array.isArray(cfg.mcp_outils) ? cfg.mcp_outils : [];\nconst exclus = Array.isArray(cfg.mcp_outils_exclus) ? cfg.mcp_outils_exclus : [];\nconst dispo = bruts.map(t => t.name);\nconst inconnus = [...voulus, ...exclus].filter(n => !dispo.includes(n));\nif (inconnus.length) {\n  throw new Error(\"Outil(s) nomme(s) absent(s) du serveur : \" + inconnus.join(', ')\n    + \" — outils exposes : \" + dispo.join(', '));\n}\n// Le modele voit tout ce que le serveur publie, moins les exclusions de\n// campagne. Une liste d'inclusion non vide restreint davantage : elle sert\n// aux campagnes de controle, pas a la campagne de reference.\nconst retenus = (voulus.length ? bruts.filter(t => voulus.includes(t.name)) : bruts)\n                .filter(t => !exclus.includes(t.name));\nif (!retenus.length) throw new Error(\"Perimetre d'outils vide apres filtrage.\");\n\nconst outils_mcp = retenus.map(t => ({\n  name: t.name,\n  description: String(t.description || '').slice(0, 4000),\n  input_schema: t.inputSchema && t.inputSchema.type\n    ? t.inputSchema\n    : { type: 'object', properties: {}, required: [] },\n}));\n\n// Empreinte du serveur, recopiee dans chaque enregistrement : une campagne\n// doit pouvoir etre rattachee a la version exacte du serveur qui l'a servie.\nlet mcp_serveur = null;\ntry {\n  const s = $('Verifier le serveur MCP').first().json;\n  mcp_serveur = { version: s.version, db_version: s.db_version,\n                  run_id: s.run_id, ready: s.ready };\n} catch (e) { mcp_serveur = null; }\n\nreturn [{ json: { ...cfg, outils_mcp, mcp_serveur,\n                  mcp_outils_exposes: outils_mcp.map(o => o.name),\n                  mcp_tools_octets: JSON.stringify(outils_mcp).length } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        320
+      ],
+      "id": "1706b46f-1d47-413b-ad61-a4b67b195447",
+      "name": "Normaliser les outils MCP"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Etat de l'iteration en cours. \"Preparer l'appel\" pose le tour 1 ;\n// \"Integrer les resultats d'outils\" pose les suivants. Le run_id departage :\n// sans lui, une iteration SANS appel d'outil relirait la trace de l'iteration\n// precedente, restee en memoire dans le noeud.\nfunction noeud(nom) { try { return $(nom).first().json; } catch (e) { return null; } }\nfunction etat() {\n  const base = noeud(\"Preparer l'appel\") || {};\n  const suite = noeud(\"Integrer les resultats d'outils\");\n  return (suite && suite.run_id === base.run_id) ? suite : base;\n}\n\n// Decide s'il faut rendre la main au serveur MCP. La reponse HTTP brute est\n// transmise TELLE QUELLE : \"Assembler l'enregistrement\" attend sa forme\n// exacte (statusCode / headers / body / error).\nconst brut = $input.first().json || {};\nconst e = etat();\nconst panne = brut.error !== undefined && brut.statusCode === undefined;\nconst rep = panne ? {} : (brut.body !== undefined ? brut.body : brut);\nconst demande = !panne && Number(brut.statusCode) === 200\n                && rep && rep.stop_reason === 'tool_use';\nconst tour = Number(e.tour || 1);\nconst max_tours = Number(e.mcp_max_tours || 8);\n\nreturn [{ json: { ...brut,\n  mcp_continuer: Boolean(e.mcp_actif === true && demande && tour < max_tours),\n  mcp_tours_epuises: Boolean(e.mcp_actif === true && demande && tour >= max_tours),\n  mcp_tour_courant: tour } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        192
+      ],
+      "id": "e79d3dd2-6a78-4791-8aab-b6a9d2026ed6",
+      "name": "Tour MCP ?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.mcp_continuer }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        192
+      ],
+      "id": "d8f61205-a2f0-4276-8b2c-36d8cf067f0f",
+      "name": "Outils demandes ?"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Etat de l'iteration en cours. \"Preparer l'appel\" pose le tour 1 ;\n// \"Integrer les resultats d'outils\" pose les suivants. Le run_id departage :\n// sans lui, une iteration SANS appel d'outil relirait la trace de l'iteration\n// precedente, restee en memoire dans le noeud.\nfunction noeud(nom) { try { return $(nom).first().json; } catch (e) { return null; } }\nfunction etat() {\n  const base = noeud(\"Preparer l'appel\") || {};\n  const suite = noeud(\"Integrer les resultats d'outils\");\n  return (suite && suite.run_id === base.run_id) ? suite : base;\n}\n\n// Un tour Claude peut demander PLUSIEURS outils a la fois. Le serveur accepte\n// les LOTS JSON-RPC (tableau de messages -> tableau de reponses) : les n\n// appels partent donc en UNE seule requete HTTP, sans sous-boucle n8n.\nconst brut = $input.first().json || {};\nconst rep = brut.body || {};\nconst e = etat();\nconst blocs = Array.isArray(rep.content) ? rep.content : [];\nconst demandes = blocs.filter(b => b && b.type === 'tool_use');\nif (!demandes.length) throw new Error(\"stop_reason=tool_use sans bloc tool_use.\");\n\nconst lot = demandes.map(d => ({\n  jsonrpc: \"2.0\", id: d.id, method: \"tools/call\",\n  params: { name: d.name, arguments: (d.input && typeof d.input === 'object') ? d.input : {} },\n}));\n\nreturn [{ json: {\n  ...e,\n  contenu_assistant: blocs,          // recopie integrale du tour assistant\n  demandes_outils: demandes.map(d => ({ id: d.id, name: d.name, input: d.input })),\n  corps_mcp: JSON.stringify(lot),\n  entetes_mcp: JSON.stringify({ \"Content-Type\": \"application/json\",\n                                \"Accept\": \"application/json\" }),\n  usage_tour: rep.usage || null,\n  t_mcp0: Date.now(),\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        96
+      ],
+      "id": "2735637c-3b54-4f23-90bb-fb0b754d3ef9",
+      "name": "Preparer le lot MCP"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.mcp_url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ $json.entetes_mcp }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.corps_mcp }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": "={{ $json.mcp_timeout_ms || 120000 }}"
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2032,
+        128
+      ],
+      "id": "679b67b3-3ce6-41c8-a035-375cd3c0d8a5",
+      "name": "Appel MCP",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rend les resultats d'outils a Claude et relance le tour suivant.\n// Une panne du serveur MCP n'interrompt PAS l'iteration : elle est rendue au\n// modele comme un tool_result en erreur, exactement comme le ferait un client\n// MCP. Le modele peut alors reformuler ou conclure sans l'outil, et la trace\n// garde la panne pour l'analyse.\nconst lot = $('Preparer le lot MCP').first().json;\nconst brut = $input.first().json || {};\nconst ms = Date.now() - Number(lot.t_mcp0 || Date.now());\n\nconst panne = brut.error !== undefined && brut.statusCode === undefined;\nlet reponses = [];\nlet panne_txt = null;\nif (panne) {\n  panne_txt = 'transport - ' + String((brut.error || {}).message || brut.error).slice(0, 300);\n} else if (Number(brut.statusCode) !== 200) {\n  panne_txt = 'HTTP ' + brut.statusCode + ' - ' + JSON.stringify(brut.body || {}).slice(0, 300);\n} else {\n  const b = brut.body;\n  reponses = Array.isArray(b) ? b : (b ? [b] : []);\n}\nconst parId = {};\nfor (const r of reponses) if (r && r.id !== undefined) parId[String(r.id)] = r;\n\nlet nb_err = Number(lot.mcp_erreurs || 0);\nconst traces = [];\nconst resultats = lot.demandes_outils.map(d => {\n  const r = parId[String(d.id)];\n  let txt, err = false;\n  if (panne_txt) { txt = \"ERREUR serveur MCP : \" + panne_txt; err = true; }\n  else if (!r) { txt = \"ERREUR : aucune reponse du serveur pour cet appel.\"; err = true; }\n  else if (r.error) { txt = \"ERREUR JSON-RPC \" + r.error.code + \" : \" + r.error.message; err = true; }\n  else {\n    const res = r.result || {};\n    const c = Array.isArray(res.content) ? res.content[0] : null;\n    txt = c && typeof c.text === 'string' ? c.text : JSON.stringify(res);\n    err = res.isError === true;\n  }\n  if (err) nb_err++;\n\n  // Trace EXPLOITABLE pour les metriques. On ne recopie pas la reponse\n  // (jusqu'a 8 ko par appel, 126 iterations), seulement ce qui permet de\n  // juger l'usage des outils apres coup :\n  //  - `ids`   : les identifiants ATT&CK que le serveur a effectivement\n  //              renvoyes, pour verifier que le mapping final est ANCRE dans\n  //              ce que le serveur a dit et non produit de memoire ;\n  //  - `matrix`: la matrice demandee par le modele, ou null s'il l'a omise.\n  //              Le serveur ne connait PAS la matrice prescrite par le\n  //              dataset : sans ce parametre, une recherche mixe les deux\n  //              matrices et peut rendre un homonyme industriel pour un\n  //              comportement bureautique ;\n  //  - `avert` : les garde-fous que le serveur a leves dans cette reponse.\n  const ids = Array.from(new Set((txt.match(/\\b(?:TA\\d{4}|T\\d{4}(?:\\.\\d{3})?)\\b/g) || [])))\n                   .slice(0, 60);\n  const arg = (d.input && typeof d.input === 'object') ? d.input : {};\n  // Un outil INEXISTANT est une hallucination d'outil : le serveur repond\n  // -32602 « Outil inconnu ». calculer_metriques.py la compte a part des\n  // appels en erreur, qui visent un outil reel avec de mauvais arguments.\n  const inconnu = Boolean(r && r.error\n                          && /outil inconnu/i.test(String(r.error.message || '')));\n  // Le serveur distingue deux choses que le mot « erreur » confond :\n  //  - ARGUMENTS INVALIDES (matrice inconnue, parametre mal nomme) -> isError,\n  //    donc ok=false : l'appel a echoue ;\n  //  - IDENTIFIANT INTROUVABLE -> reponse normale portant une cle `error`,\n  //    donc ok=true : l'appel a reussi et la reponse est « n'existe pas ».\n  //    C'est le signal le plus interessant du lot : le modele a soumis au\n  //    serveur un identifiant qu'il avait en tete et le serveur l'a dementi.\n  const introuvable = !err && /\\\"error\\\"\\s*:\\s*\\\"(Technique|Tactique|Mitigation|Groupe|Campagne|Equipement)/.test(txt);\n  const avert = [];\n  if (/\\\"homonymes\\\"/.test(txt)) avert.push('homonymes');\n  if (/\\\"pivot\\\"/.test(txt)) avert.push('pivot');\n  if (/requete d'un seul terme/.test(txt)) avert.push('requete_courte');\n  if (/aucun candidat/.test(txt)) avert.push('aucun_candidat');\n  if (/est revoquee/.test(txt)) avert.push('revoquee');\n  if (/est DEPRECIEE/.test(txt)) avert.push('depreciee');\n\n  // Forme attendue par calculer_metriques.py (champ racine `appels_mcp`) :\n  // outil / arguments / ok / inconnu / ids_retournes. Les cles `tour`,\n  // `matrix`, `avert`, `octets` et `ms` sont ADDITIVES : le script les ignore,\n  // l'extension « conformite de matrice » les lit.\n  traces.push({ outil: d.name, arguments: arg, ok: !err && !inconnu,\n                inconnu, ids_retournes: ids, introuvable,\n                tour: Number(lot.tour || 1), matrix: arg.matrix || null,\n                avert, octets: txt.length, ms });\n  return { type: 'tool_result', tool_use_id: d.id, content: txt, is_error: err };\n});\n\n// Conversation reconstituee : historique + tour assistant + resultats.\nconst messages = [...(lot.messages_etat || []),\n                  { role: 'assistant', content: lot.contenu_assistant },\n                  { role: 'user', content: resultats }];\n\nconst corpsObj = { model: lot.modele, max_tokens: lot.max_tokens_sortie,\n                   system: lot.prompt_system, messages };\nconst outils = $('Normaliser les outils MCP').first().json.outils_mcp || [];\nif (outils.length) {\n  corpsObj.tools = outils;\n  // Des le deuxieme tour, `auto` : le modele a deja consulte le referentiel,\n  // il doit pouvoir conclure. Rester en `any` le forcerait a boucler jusqu'a\n  // epuisement du budget de tours.\n  corpsObj.tool_choice = { type: 'auto' };\n}\n\nconst u = lot.usage_tour || {};\nreturn [{ json: { ...lot,\n  corps: JSON.stringify(corpsObj),\n  messages_etat: messages,\n  tour: Number(lot.tour || 1) + 1,\n  mcp_trace: [...(lot.mcp_trace || []), ...traces],\n  mcp_appels: Number(lot.mcp_appels || 0) + resultats.length,\n  mcp_ms: Number(lot.mcp_ms || 0) + ms,\n  mcp_erreurs: nb_err,\n  usage_cumul: { entree: Number((lot.usage_cumul||{}).entree || 0) + Number(u.input_tokens || 0),\n                 sortie: Number((lot.usage_cumul||{}).sortie || 0) + Number(u.output_tokens || 0) },\n  contenu_assistant: undefined, demandes_outils: undefined,\n  corps_mcp: undefined, entetes_mcp: undefined, t_mcp0: undefined } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        144
+      ],
+      "id": "597558aa-3adf-450a-b8fc-fcda23dc5577",
+      "name": "Integrer les resultats d'outils"
+    },
+    {
+      "parameters": {
+        "content": "## Boucle d'outils MCP\n\n\nLe tour de parole : `Appel LLM` -> `Tour MCP ",
+        "height": 300,
+        "width": 996,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        32
+      ],
+      "id": "eff8bbc5-098a-44bc-a1e5-26e4707714dd",
+      "name": "_10_mcp"
+    },
+    {
+      "parameters": {
+        "content": "## Détection du serveur MCP\n",
+        "height": 260,
+        "width": 844,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        48,
+        192
+      ],
+      "id": "8d331c1d-ddcf-464f-8c84-be36816cd7f3",
+      "name": "_11_skill1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Lancer l'evaluation": {
+      "main": [
+        [
+          {
+            "node": "Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuration": {
+      "main": [
+        [
+          {
+            "node": "Verifier le serveur MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire les echantillons": {
+      "main": [
+        [
+          {
+            "node": "Extraire les echantillons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire les echantillons": {
+      "main": [
+        [
+          {
+            "node": "Preparer les iterations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle": {
+      "main": [
+        [
+          {
+            "node": "Synthese de campagne",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aiguillage Vertex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aiguillage Vertex": {
+      "main": [
+        [
+          {
+            "node": "Verifier cache jeton",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparer l'appel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifier cache jeton": {
+      "main": [
+        [
+          {
+            "node": "Jeton en cache ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jeton en cache ?": {
+      "main": [
+        [
+          {
+            "node": "Preparer l'appel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lire identifiants gcloud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire identifiants gcloud": {
+      "main": [
+        [
+          {
+            "node": "Extraire identifiants gcloud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire identifiants gcloud": {
+      "main": [
+        [
+          {
+            "node": "Normaliser identifiants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser identifiants": {
+      "main": [
+        [
+          {
+            "node": "Obtenir jeton",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtenir jeton": {
+      "main": [
+        [
+          {
+            "node": "Injecter le jeton",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Injecter le jeton": {
+      "main": [
+        [
+          {
+            "node": "Preparer l'appel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer l'appel": {
+      "main": [
+        [
+          {
+            "node": "Appel LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appel LLM": {
+      "main": [
+        [
+          {
+            "node": "Tour MCP ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assembler l'enregistrement": {
+      "main": [
+        [
+          {
+            "node": "Nouvelle tentative ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nouvelle tentative ?": {
+      "main": [
+        [
+          {
+            "node": "Calcul du backoff",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ligne JSONL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcul du backoff": {
+      "main": [
+        [
+          {
+            "node": "Attente backoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attente backoff": {
+      "main": [
+        [
+          {
+            "node": "Aiguillage Vertex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ligne JSONL": {
+      "main": [
+        [
+          {
+            "node": "Convertir en fichier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir en fichier": {
+      "main": [
+        [
+          {
+            "node": "Ecrire (ajout) dans le JSONL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ecrire (ajout) dans le JSONL": {
+      "main": [
+        [
+          {
+            "node": "Pause anti-quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause anti-quota": {
+      "main": [
+        [
+          {
+            "node": "Boucle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer les iterations": {
+      "main": [
+        [
+          {
+            "node": "Boucle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifier le serveur MCP": {
+      "main": [
+        [
+          {
+            "node": "Controler la sonde MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controler la sonde MCP": {
+      "main": [
+        [
+          {
+            "node": "Lister les outils MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lister les outils MCP": {
+      "main": [
+        [
+          {
+            "node": "Normaliser les outils MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser les outils MCP": {
+      "main": [
+        [
+          {
+            "node": "Lire les echantillons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tour MCP ?": {
+      "main": [
+        [
+          {
+            "node": "Outils demandes ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outils demandes ?": {
+      "main": [
+        [
+          {
+            "node": "Preparer le lot MCP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assembler l'enregistrement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer le lot MCP": {
+      "main": [
+        [
+          {
+            "node": "Appel MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appel MCP": {
+      "main": [
+        [
+          {
+            "node": "Integrer les resultats d'outils",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Integrer les resultats d'outils": {
+      "main": [
+        [
+          {
+            "node": "Appel LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ce7d7e0f-d43c-4394-b4ea-45ab231d8b72",
+  "meta": {
+    "instanceId": "82f0f134261c4dabfa31289ac5cf2b6142b0de75e0104990ea0105898f7b1ee4"
+  },
+  "id": "WOkjaUm4ZmO3xJN2",
+  "tags": []
+}

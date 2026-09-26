@@ -1,0 +1,16 @@
+{"technique":"T1059.004","sub_technique":"004","tactic":"execution","marker_gid":4242,"t0":"2026-08-31T15:42:51.989570540Z","t1":"2026-08-31T15:42:52.048869739Z","rc":0}
+{"technique":"T1059.006","sub_technique":"006","tactic":"execution","marker_gid":4242,"t0":"2026-08-31T15:43:22.055079678Z","t1":"2026-08-31T15:43:22.091883229Z","rc":0}
+{"technique":"T1548.003","sub_technique":"003","tactic":"privilege-escalation","marker_gid":4242,"t0":"2026-08-31T15:43:52.096895106Z","t1":"2026-08-31T15:43:52.172599253Z","rc":0}
+{"technique":"T1548.001","sub_technique":"001","tactic":"privilege-escalation","marker_gid":4242,"t0":"2026-08-31T15:44:22.178257678Z","t1":"2026-08-31T15:44:22.266438862Z","rc":0}
+{"technique":"T1053.003","sub_technique":"003","tactic":"persistence","marker_gid":4242,"t0":"2026-08-31T15:44:52.272344539Z","t1":"2026-08-31T15:44:52.298572877Z","rc":0}
+{"technique":"T1543.002","sub_technique":"002","tactic":"persistence","marker_gid":4242,"t0":"2026-08-31T15:45:22.312357552Z","t1":"2026-08-31T15:45:22.712499514Z","rc":0}
+{"technique":"T1546.004","sub_technique":"004","tactic":"persistence","marker_gid":4242,"t0":"2026-08-31T15:45:52.718612220Z","t1":"2026-08-31T15:45:52.732881094Z","rc":0}
+{"technique":"T1098.004","sub_technique":"004","tactic":"persistence","marker_gid":4242,"t0":"2026-08-31T15:46:22.739646450Z","t1":"2026-08-31T15:46:22.755156453Z","rc":0}
+{"technique":"T1037.004","sub_technique":"004","tactic":"persistence","marker_gid":4242,"t0":"2026-08-31T15:46:52.760523985Z","t1":"2026-08-31T15:46:52.804897557Z","rc":0}
+{"technique":"T1003.008","sub_technique":"008","tactic":"credential-access","marker_gid":4242,"t0":"2026-08-31T15:47:22.812101331Z","t1":"2026-08-31T15:47:22.888851656Z","rc":0}
+{"technique":"T1552.003","sub_technique":"003","tactic":"credential-access","marker_gid":4242,"t0":"2026-08-31T15:47:52.894886198Z","t1":"2026-08-31T15:47:52.909488931Z","rc":1}
+{"technique":"T1070.003","sub_technique":"003","tactic":"stealth","marker_gid":4242,"t0":"2026-08-31T15:48:22.914518570Z","t1":"2026-08-31T15:48:22.924984924Z","rc":0}
+{"technique":"T1140","sub_technique":"-","tactic":"stealth","marker_gid":4242,"t0":"2026-08-31T15:48:52.930195120Z","t1":"2026-08-31T15:48:52.953928661Z","rc":0}
+{"technique":"T1685.006","sub_technique":"006","tactic":"defense-impairment","marker_gid":4242,"t0":"2026-08-31T15:49:22.959674955Z","t1":"2026-08-31T15:49:23.030865681Z","rc":0}
+{"technique":"T1222.002","sub_technique":"002","tactic":"defense-impairment","marker_gid":4242,"t0":"2026-08-31T15:49:53.038193363Z","t1":"2026-08-31T15:49:53.085653563Z","rc":0}
+{"technique":"T1686","sub_technique":"-","tactic":"defense-impairment","marker_gid":4242,"t0":"2026-08-31T15:50:23.091497664Z","t1":"2026-08-31T15:50:23.536907145Z","rc":0}

@@ -1,0 +1,12 @@
+{"mitre_name":"System Owner/User Discovery","technique":"T1033","t1":"2026-09-02T07:53:45.767Z","machine":"DC01","events":3,"tactic":"Discovery","t0":"2026-09-02T07:53:43.257Z"}
+{"mitre_name":"System Information Discovery","technique":"T1082","t1":"2026-09-02T07:54:07.672Z","machine":"DC01","events":2,"tactic":"Discovery","t0":"2026-09-02T07:54:02.155Z"}
+{"mitre_name":"Process Discovery","technique":"T1057","t1":"2026-09-02T07:54:29.494Z","machine":"DC01","events":2,"tactic":"Discovery","t0":"2026-09-02T07:54:26.970Z"}
+{"mitre_name":"System Network Configuration Discovery","technique":"T1016","t1":"2026-09-02T07:54:48.997Z","machine":"DC01","events":4,"tactic":"Discovery","t0":"2026-09-02T07:54:46.487Z"}
+{"mitre_name":"Account Discovery: Local Account","technique":"T1087.001","t1":"2026-09-02T07:55:07.311Z","machine":"DC01","events":5,"tactic":"Discovery","t0":"2026-09-02T07:55:04.801Z"}
+{"mitre_name":"Command and Scripting Interpreter: PowerShell","technique":"T1059.001","t1":"2026-09-02T07:55:25.599Z","machine":"DC01","events":1,"tactic":"Execution","t0":"2026-09-02T07:55:23.081Z"}
+{"mitre_name":"Command and Scripting Interpreter: Windows Command Shell","technique":"T1059.003","t1":"2026-09-02T07:55:44.162Z","machine":"DC01","events":6,"tactic":"Execution","t0":"2026-09-02T07:55:41.651Z"}
+{"mitre_name":"Obfuscated Files or Information: Command Obfuscation","technique":"T1027.010","t1":"2026-09-02T07:56:04.398Z","machine":"DC01","events":2,"tactic":"Stealth","t0":"2026-09-02T07:55:59.883Z"}
+{"mitre_name":"Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder","technique":"T1547.001","t1":"2026-09-02T07:56:23.512Z","machine":"DC01","events":5,"tactic":"Persistence","t0":"2026-09-02T07:56:21.001Z"}
+{"mitre_name":"Scheduled Task/Job: Scheduled Task","technique":"T1053.005","t1":"2026-09-02T07:56:41.729Z","machine":"DC01","events":4,"tactic":"Persistence","t0":"2026-09-02T07:56:39.218Z"}
+{"mitre_name":"Create or Modify System Process: Windows Service","technique":"T1543.003","t1":"2026-09-02T07:57:00.087Z","machine":"DC01","events":4,"tactic":"Persistence","t0":"2026-09-02T07:56:57.565Z"}
+{"mitre_name":"Modify Registry","technique":"T1112","t1":"2026-09-02T07:57:18.382Z","machine":"DC01","events":5,"tactic":"Defense Impairment","t0":"2026-09-02T07:57:15.872Z"}

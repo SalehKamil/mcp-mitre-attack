@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "organisation": "HQ",
+    "version": "2",
+    "dernier_id_attribue": "",
+    "description": "Referentiel interne en deux parties. 'techniques' : fiches THQxxxx, pour les comportements que MITRE ATT&CK ne couvre pas (ou trop generiquement pour notre contexte) ; technique_mitre_liee y designe, si elle existe, la technique ATT&CK la plus proche. 'references_mitre' : rapports CTI et referentiels internes rattaches a une technique ATT&CK EXISTANTE, sans jamais modifier la base MITRE telechargee. Une reference = {titre, lien} obligatoires, {date, commentaire} optionnels.",
+    "regles": "Ajout et validation par revue humaine uniquement. Le serveur MCP sert ce fichier en lecture seule et n'y ecrit jamais : search_internal fournit le bloc JSON a coller, l'analyste l'ecrit puis appelle internal_reload. Une seule entree par technique dans 'references_mitre' : ajouter les rapports a sa liste 'references'. Numerotation continue des fiches : un identifiant retire n'est jamais reattribue. A chaque nouvelle fiche, remonter dernier_id_attribue au meme identifiant : c'est cette cle, et elle seule, qui empeche la reattribution d'un numero apres un redemarrage du serveur."
+  },
+  "techniques": [],
+  "references_mitre": []
+}

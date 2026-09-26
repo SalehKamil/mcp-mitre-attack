@@ -1,0 +1,71 @@
+% =====================================================================
+% fig-2-8-workflow-skill-cache.tex  (version simplifiée)
+%
+% Le workflow de la phase 3 = celui de la phase 2 (fig-2-3-workflow-mcp),
+% repris tel quel : harnais du chapitre 1 + client MCP + boucle d'outils
+% (huit tours au plus). SEUL AJOUT dessiné : les deux points de coupe du
+% cache de prompt (en ocre). Le skill n'apparaît pas : il ne change pas
+% la forme du workflow, son corps entre par le prompt système dans
+% « Préparer l'appel ».
+%
+% Bibliothèques TikZ requises : \usetikzlibrary{arrows.meta}
+% Largeur du tracé : environ 15,5 cm.
+% =====================================================================
+
+\definecolor{wfbord}{HTML}{4A5568}
+\definecolor{wffond}{HTML}{F7F7F4}
+\definecolor{wfmcpb}{HTML}{2F6F66}
+\definecolor{wfmcpf}{HTML}{E8F1EF}
+\definecolor{wfcacheb}{HTML}{B3541E}
+\definecolor{wfcachef}{HTML}{FBEDE4}
+\definecolor{wffleche}{HTML}{6B7280}
+
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=2mm]},
+  bloc/.style  = {draw=wfbord, fill=wffond, rounded corners=2pt,
+                  line width=.4pt, text width=2.35cm, align=center,
+                  inner sep=3pt, minimum height=10mm},
+  mcp/.style   = {bloc, draw=wfmcpb, fill=wfmcpf},
+  test/.style  = {bloc, dash pattern=on 2pt off 1.5pt},
+  cache/.style = {draw=wfcacheb, fill=wfcachef, rounded corners=2pt,
+                  line width=.8pt, text width=3.1cm, align=center,
+                  inner sep=3pt, font=\tiny, text=wfcacheb},
+  fl/.style    = {->, draw=wffleche, line width=.5pt},
+  flc/.style   = {->, draw=wfcacheb, line width=.7pt,
+                  dash pattern=on 2pt off 1.5pt},
+  et/.style    = {font=\tiny, text=wffleche, inner sep=1.5pt, fill=white}
+]
+
+% ------------------------------------------------ chaîne principale
+\node[bloc] (bcl) at ( 1.40, 0)    {Boucle\\[-2pt]{\tiny 42 $\times$ 3 = 126, un appel à la fois}};
+\node[bloc] (prp) at ( 4.75, 0)    {Préparer l'appel\\[-2pt]{\tiny consigne + outils + journal}};
+\node[bloc] (llm) at ( 8.10, 0)    {Appel LLM\\[-2pt]{\tiny Claude Opus 4.8}};
+\node[test] (tmc) at (11.45, 0)    {Tour MCP ?\\[-2pt]{\tiny 8 tours au plus}};
+\node[bloc] (jgm) at (14.80, 0)    {Jugement,\\[-3pt]ligne JSONL};
+
+\draw[fl] (bcl) -- (prp);
+\draw[fl] (prp) -- (llm);
+\draw[fl] (llm) -- (tmc);
+\draw[fl] (tmc) -- node[et, above] {triplet} (jgm);
+
+% ------------------------------------------------ boucle d'outils
+\node[bloc] (lot) at (11.45,-2.55) {Préparer le lot\\[-2pt]{\tiny un envoi JSON-RPC}};
+\node[mcp]  (srv) at ( 8.10,-2.55) {Serveur MCP\\[-2pt]{\tiny \texttt{POST /mcp}}};
+\node[mcp]  (itg) at ( 4.75,-2.55) {Intégrer\\[-2pt]{\tiny \texttt{tool\_result}}};
+
+\draw[fl] (tmc.south) -- node[et, right] {outils demandés} (lot.north);
+\draw[fl] (lot) -- (srv);
+\draw[fl] (srv) -- (itg);
+\draw[fl] (itg.north) -- ++(0,0.85) -| node[et, pos=.25, above] {l'appel repart} (llm.south);
+\draw[fl] (jgm.south) -- (14.80,-3.85) -- (1.40,-3.85)
+          node[et, above, pos=.55] {exécution suivante}
+          -- (bcl.south);
+
+% ------------------------------------------------ le seul ajout : le cache
+\node[cache] (c1) at (4.75, 1.75) {\textbf{AJOUT PHASE 3 --- CACHE}\\point de coupe explicite en fin de bloc système, couvrant les outils};
+\node[cache] (c2) at (1.60,-2.55) {\textbf{AJOUT PHASE 3 --- CACHE}\\cache automatique de tête pour la conversation qui grandit};
+\draw[flc] (c1.south) -- (prp.north);
+\draw[flc] (c2.east) -- (itg.west);
+
+\end{tikzpicture}

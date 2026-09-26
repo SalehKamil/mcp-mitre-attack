@@ -1,0 +1,58 @@
+
+\chapterwithtoc{Introduction générale}
+\label{chap:introduction}
+
+Pendant longtemps, défendre un système d'information a consisté à en garder
+la porte. On admet aujourd'hui que l'intrusion finira par se produire, et que la valeur d'une défense se mesure à sa capacité de la détecter, de la comprendre et de la contenir pendant qu'elle a lieu. Au sein d'un centre d'opérations de sécurité, deux équipes sur trois déclarent ne plus suivre le rythme, et les analystes juniors se renouvellent plus vite qu'ils ne se forment~\cite{sans2024}. La recherche a donné un nom à ce phénomène, la \emph{fatigue d'alerte}~\cite{tariq}, et un diagnostic : le
+goulot d'étranglement n'est pas la détection, mais la qualification de ce
+qui est détecté.
+
+Le référentiel MITRE ATT\&CK~\cite{attack} est devenu la langue commune de cet
+exercice ; y cartographier une activité observée reste pourtant un travail
+manuel, lent, et tributaire d'une expertise rare. Pour un exploitant
+d'infrastructure énergétique, la difficulté redouble : l'incident type
+traverse la frontière entre l'informatique de gestion et l'informatique
+industrielle (automates, capteurs, protocoles de terrain) deux mondes
+qui ne parlent ni les mêmes journaux ni la même matrice ATT\&CK, et dont la
+convergence est précisément ce que visent les campagnes les plus avancées.
+
+Les grands modèles de langage (LLM) semblent taillés pour cette tâche. Mais on ne
+peut pas encore leur faire confiance : ils \emph{hallucinent}~\cite{ji}, et leur savoir est
+en outre figé à la date de leur entraînement, quand le référentiel, lui,
+évolue à chaque version. La solution ce n'est pas un modèle plus grand mais un
+modèle \emph{ancré}, rattaché au moment de répondre à une source vérifiable et
+à jour plutôt qu'à sa seule mémoire. Le \emph{Model Context Protocol} (MCP),
+ouvert fin 2024 et confié depuis à une gouvernance
+neutre~\cite{mcpintro,aaif}, standardise cet ancrage en donnant au modèle un
+accès structuré, déterministe et journalisable à des outils et à des données.
+
+C'est dans ce contexte que s'inscrit le présent essai, qui conçoit un écosystème agentique intégrant le MCP et MITRE ATT\&CK pour
+détecter et contextualiser les attaques. Quatre questions le guident :
+\begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}\setlength{\topsep}{2pt}
+  \item \textbf{Q1 --- Où en sont les modèles sans ancrage ?} Dans quelle mesure
+        les modèles de langage actuels savent-ils rattacher au référentiel une
+        activité malveillante lue dans des journaux bruts, aux trois niveaux de
+        la hiérarchie (tactique, technique, sous-technique) ? Cette capacité se
+        maintient-elle lorsque l'on passe de la matrice Enterprise à la matrice
+        ICS, c'est-à-dire du journal de système d'information au journal
+        d'automate ? La réponse suppose un corpus produit en laboratoire, à
+        l'abri de la contamination qui fausse les bancs d'essai publics.
+  \item \textbf{Q2 --- Que change l'ancrage déterministe ?} À corpus, consigne
+        et conditions d'appel identiques, que gagne un modèle qui interroge un
+        référentiel avant de répondre par rapport au même modèle répondant de
+        mémoire ? Le gain attendu porte sur trois défauts distincts : les
+        identifiants fabriqués, les identifiants périmés, et la confusion entre
+        les deux matrices. Encore faut-il les mesurer séparément.
+  \item \textbf{Q3 --- Comment construire le serveur qui le permet ?} Quelles
+        propriétés un serveur MCP doit-il réunir pour que cet ancrage soit
+        exact, reproductible et daté : quelle granularité d'outils, quelle
+        version du référentiel, quel traitement des identifiants révoqués,
+        quelle trace jointe à chaque réponse ? La littérature fixe des
+        conditions d'emploi, elle ne les éprouve pas sur cette tâche.
+  \item \textbf{Q4 --- À quel coût en surface d'attaque ?} Ancrer un modèle
+        déplace le risque du texte vers l'action : le serveur devient un canal
+        d'instruction autant qu'une source de faits. Quelles garanties de
+        conception --- lecture seule, moindre privilège, journalisation,
+        validation des entrées --- rendent ce déplacement acceptable pour un
+        exploitant d'infrastructure essentielle soumis à la LPCE ?
+\end{enumerate}

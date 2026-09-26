@@ -1,0 +1,36 @@
+
+\chapterwithtoc{Résumé}
+\label{chap:resume}
+
+Dans un centre d'opérations de sécurité, le goulot d'étranglement n'est plus la
+détection mais la qualification de ce qui est détecté. Rattacher une activité
+observée au référentiel MITRE ATT\&CK reste un travail manuel, lent et
+tributaire d'une expertise rare, et la difficulté redouble chez un exploitant
+d'infrastructure énergétique, dont les incidents traversent la frontière entre
+informatique de gestion et informatique industrielle.
+
+Cet essai conçoit et mesure un écosystème agentique ancrant un modèle de langage
+sur ATT\&CK au moyen du \emph{Model Context Protocol}. Un corpus de
+42 échantillons est produit en laboratoire, à l'abri de la contamination qui
+fausse les bancs d'essai publics, sur deux zones --- systèmes d'information et
+automates --- et deux matrices, Enterprise et ICS. Dix modèles de la génération
+courante y sont évalués sans ancrage, en trois exécutions par échantillon, soit
+1\,260 appels, selon une méthodologie qui sépare cinq catégories de prédiction
+et deux bases de calcul. Le modèle retenu est ensuite rejoué avec le serveur, à
+corpus et conditions identiques.
+
+Sans ancrage, aucun modèle ne dépasse 0,603 de F1 au niveau technique, et la
+performance chute d'un tiers sur la matrice industrielle. Les identifiants
+fabriqués sont exclusivement des tactiques, et exclusivement sur des journaux
+industriels : l'erreur est un défaut de repérage entre univers, non une
+invention arbitraire. Avec ancrage, le F1 technique passe de 0,563 à 0,706, la
+matrice industrielle double presque, et le taux d'identifiants périmés ne
+diminue pas : il disparaît. La contribution ne tient pas à l'accès à une source,
+mais à quatre décisions de conception --- version épinglée et jointe à chaque
+réponse, résolution des révocations, granularité d'outils bornée, trace d'usage
+vérifiable.
+
+\vspace{1em}
+\noindent\textbf{Mots-clés :} MITRE ATT\&CK, Model Context Protocol, grands
+modèles de langage, ancrage, centre d'opérations de sécurité, technologies
+opérationnelles, ICS, évaluation.

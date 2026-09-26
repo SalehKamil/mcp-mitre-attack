@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net" agent="Claude">
+  <diagram name="Audit MCP MITRE ATLAS" id="diag5">
+    <mxGraphModel dx="2184" dy="1342" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=0;" value="5 - Vérification de la conformité du code MCP au cadre MITRE ATLAS" vertex="1">
+          <mxGeometry height="40" width="1000" x="270" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="iface" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E0;strokeColor=#A0A090;fontColor=#555555;fontSize=12;" value="&lt;b&gt;Interface chat n8n&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Requête + rapport final&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="185" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="code_archive" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F0F0F0;strokeColor=#888888;fontColor=#444444;fontSize=11;dashed=1;" value="&lt;b&gt;Code MCP cible&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Archive .zip fournie par l&#39;analyste&lt;br&gt;(Python ou TypeScript)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="95" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="chat_trigger" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C9DAF8;strokeColor=#5B7CB0;fontColor=#1F3864;fontSize=12;" value="&lt;b&gt;Chat Trigger&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Réception requête + archive&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="535" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="agent_llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4C5E8;strokeColor=#7B68A6;fontColor=#3F2A6B;fontSize=12;" value="&lt;b&gt;Agent LLM&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Orchestrateur — Claude / GPT-4o / Llama / Mistral&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="525" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="redaction" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4E6C5;strokeColor=#6B8E5A;fontColor=#2F5523;fontSize=12;" value="&lt;b&gt;Rédaction rapport&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Rapport texte unique (par l&#39;Agent LLM)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="475" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C5E6D4;strokeColor=#5A8E7B;fontColor=#1F5544;fontSize=12;" value="&lt;b&gt;MCP Client Tool&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Pont vers les 2 serveurs MCP&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="775" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_atlas" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8C5C5;strokeColor=#A65B5B;fontColor=#6B2222;fontSize=12;" value="&lt;b&gt;Serveur MCP MITRE ATLAS&lt;/b&gt;&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="100" width="280" x="1165" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="base_atlas" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8DBC5;strokeColor=#A68F5B;fontColor=#5B4422;fontSize=12;" value="&lt;b&gt;Base de connaissance ATLAS&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;atlas-data (GitHub MITRE)&lt;br&gt;STIX 2.1 / TAXII&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="280" x="1165" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="code_archive" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;dashed=1;" target="iface" value="joint à la requête">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="iface" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="chat_trigger" value="requête + archive">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="290" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="chat_trigger" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="agent_llm" value="requête">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.804;exitY=1.022;exitDx=0;exitDy=0;exitPerimeter=0;" target="mcp_client" value="appel">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="735" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="mcp_client" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="mcp_atlas" value="appel ATLAS">
+          <mxGeometry relative="1" x="0.071" y="30" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1040" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="mcp_atlas" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="base_atlas" value="lecture">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="base_atlas" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" target="mcp_atlas" value="données STIX">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="mcp_atlas" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" target="mcp_client" value="Résultats">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1130" y="610" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="mcp_client" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.371;exitY=0.035;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;" target="agent_llm" value="résultats">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="864" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="redaction" value="rédige">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="595" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="redaction" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;" target="iface" value="rapport">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="VRRUzdZnSVyH2OyQ7P3M-4" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#333333;" value="Analyste" vertex="1">
+          <mxGeometry height="60" width="40" x="105" y="560" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

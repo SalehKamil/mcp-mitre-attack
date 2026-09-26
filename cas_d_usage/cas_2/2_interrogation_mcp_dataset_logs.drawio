@@ -1,0 +1,136 @@
+<mxfile host="Electron" agent="Claude">
+  <diagram name="Interrogation MCP avec Dataset logs" id="diag2">
+    <mxGraphModel dx="1601" dy="1104" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1750" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=24;fontStyle=0;" value="2 - Interrogation du serveur MCP connecté à un Datasets de logs" vertex="1">
+          <mxGeometry height="40" width="1000" x="350" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="analyste" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#333333;" value="Analyste" vertex="1">
+          <mxGeometry height="60" width="40" x="60" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="iface" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E0;strokeColor=#A0A090;fontColor=#555555;fontSize=12;" value="&lt;b&gt;Interface chat n8n&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Requête + Réponse&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="220" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="chat_trigger" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C9DAF8;strokeColor=#5B7CB0;fontColor=#1F3864;fontSize=12;" value="&lt;b&gt;Chat Trigger&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Réception requête&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="710" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="agent_llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4C5E8;strokeColor=#7B68A6;fontColor=#3F2A6B;fontSize=12;" value="&lt;b&gt;Agent LLM&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Claude / GPT-4o / Llama / Mistral&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="700" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="redaction" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4E6C5;strokeColor=#6B8E5A;fontColor=#2F5523;fontSize=12;" value="&lt;b&gt;Rédaction rapport&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Par l&#39;Agent LLM&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="590" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C5E6D4;strokeColor=#5A8E7B;fontColor=#1F5544;fontSize=12;" value="&lt;b&gt;MCP Client Tool&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Pont vers serveur MCP&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="850" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_mitre" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8C5C5;strokeColor=#A65B5B;fontColor=#6B2222;fontSize=12;" value="&lt;b&gt;Serveur MCP MITRE&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Python — externe&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1240" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="base_conn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8DBC5;strokeColor=#A68F5B;fontColor=#5B4422;fontSize=12;" value="&lt;b&gt;Base de connaissance&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;JSON / STIX 2.1 / TAXII&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="220" x="1420" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="dataset_logs" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0C5D9;strokeColor=#8E5A7B;fontColor=#5B2244;fontSize=12;" value="&lt;b&gt;Dataset de logs&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Botsv3 / OTRF&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1270" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="analyste" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;" target="iface" value="réponse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="iface" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="chat_trigger" value="requête">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="540" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="chat_trigger" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="agent_llm" value="requête">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=0.7;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" target="mcp_client" value="appel">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="920" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;entryX=0.25;entryY=1;entryDx=0;entryDy=0;exitX=0.976;exitY=-0.002;exitDx=0;exitDy=0;exitPerimeter=0;" value="appel">
+          <mxGeometry relative="1" x="-0.0021" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1265.76" y="600" />
+            </Array>
+            <mxPoint x="1070" y="599.84" as="sourcePoint" />
+            <mxPoint x="1265.76" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;entryX=0.317;entryY=0.063;entryDx=0;entryDy=0;entryPerimeter=0;" value="lecture">
+          <mxGeometry relative="1" x="0.4049" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1475" y="320" />
+            </Array>
+            <mxPoint x="1410" y="279.9999999999999" as="sourcePoint" />
+            <mxPoint x="1474.7399999999998" y="395.0400000000001" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_logs1" edge="1" parent="1" source="mcp_mitre" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=0.424;exitY=0.988;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.365;entryY=-0.004;entryDx=0;entryDy=0;entryPerimeter=0;" target="dataset_logs" value="lecture">
+          <mxGeometry relative="1" x="0.0352" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1358" y="310" />
+            </Array>
+            <mxPoint x="1340" y="287.00000000000006" as="sourcePoint" />
+            <mxPoint x="1370" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.783;entryY=0.125;entryDx=0;entryDy=0;entryPerimeter=0;" target="redaction" value="rédige">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;" value="rapport">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="600" />
+            </Array>
+            <mxPoint x="602.6633333333331" y="600" as="sourcePoint" />
+            <mxPoint x="429.9966666666665" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="mcp_client" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.625;exitY=0.125;exitDx=0;exitDy=0;entryX=0.945;entryY=0.974;entryDx=0;entryDy=0;entryPerimeter=0;exitPerimeter=0;" target="agent_llm" value="résultats">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="mcp_mitre" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.057;exitY=1.013;exitDx=0;exitDy=0;exitPerimeter=0;" target="mcp_client" value="résultats">
+          <mxGeometry relative="1" x="0.1433" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1254" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="base_conn" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.366;exitY=0.051;exitDx=0;exitDy=0;exitPerimeter=0;" value="données">
+          <mxGeometry relative="1" x="-0.126" y="-28" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1500" y="320" />
+            </Array>
+            <mxPoint x="1509.9992307692305" y="390" as="sourcePoint" />
+            <mxPoint x="1442.563333333333" y="279.9999999999999" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_logs2" edge="1" parent="1" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.6;exitY=0;exitDx=0;exitDy=0;entryX=0.6;entryY=1;entryDx=0;entryDy=0;" value="logs">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1386" y="325" />
+            </Array>
+            <mxPoint x="1390" y="705" as="sourcePoint" />
+            <mxPoint x="1360" y="274.9999999999999" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

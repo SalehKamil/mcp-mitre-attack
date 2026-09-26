@@ -1,0 +1,88 @@
+{
+  "_methode": [
+    "Tarifs en dollars PAR MILLION de jetons, en vigueur a la DATE DE CHAQUE CAMPAGNE,",
+    "verifies le 26/09/2026 aux pages officielles (ou a des registres qui les citent). Chaque",
+    "modele porte sa source et ses particularites (_note). Les factures des fournisseurs",
+    "restent l'autorite finale.",
+    "null = tarif non publie ou sans objet : le script facture alors ces jetons au tarif",
+    "d'entree normal (borne haute).",
+    "Le script facture : (entree hors cache)*pe + (sortie + raisonnement)*ps + cache_lu*pcl + cache_ecrit*pce.",
+    "Limite : les campagnes « sans MCP » n'ont pas enregistre le cache AUTOMATIQUE des fournisseurs",
+    "(OpenAI, Google, DeepSeek, Moonshot, Alibaba) : leur cout est un MAXIMUM.",
+    "Mise a jour du 26/09/2026 : gpt-5.6-sol (cache), gpt-5.6-luna (cache), deepseek-v4-pro et deepseek-v4-flash (tarifs du 10/09)."
+  ],
+  "date_tarifs": "16 septembre 2026",
+  "devise": "USD",
+  "modeles": {
+    "claude-opus-4-8": {
+      "entree": 5.0,
+      "sortie": 25.0,
+      "cache_lecture": 0.5,
+      "cache_ecriture": 6.25,
+      "_note": "Anthropic, tarifs valides par la comptabilite des 4 campagnes de la session (identite au centime)."
+    },
+    "claude-sonnet-5": {
+      "entree": 2.0,
+      "sortie": 10.0,
+      "cache_lecture": 0.2,
+      "cache_ecriture": 2.5,
+      "_note": "Anthropic ; valeurs declarees au chapitre 1."
+    },
+    "gpt-5.6-sol": {
+      "entree": 4.0,
+      "sortie": 20.0,
+      "cache_lecture": 0.4,
+      "cache_ecriture": 5.0,
+      "_note": "OpenAI : tarif PROMOTIONNEL depuis le 21/08/2026 (au moins jusqu'au 21/11/2026) : entree 4, sortie 20, entree en cache 0,40 (10 % de l'entree), ecriture en cache 1,25 x l'entree = 5,00 (page modele developers.openai.com/api/docs/models/gpt-5.6-sol, consultee le 26/09/2026). Tarif liste 5/30. CORRECTIF 26/09 : les tarifs de cache etaient null, le cache etait facture au plein tarif."
+    },
+    "gpt-5.6-luna": {
+      "entree": 0.2,
+      "sortie": 1.2,
+      "cache_lecture": 0.02,
+      "cache_ecriture": 0.25,
+      "_note": "OpenAI, annonce officielle du 30/07/2026 (baisse de 80 %) : 0,20 / 1,20. Cache : lecture 0,02 (10 %), ecriture 0,25 (1,25 x l'entree), d'apres OpenRouter, coherent avec la regle OpenAI appliquee a Sol. Campagne du 10/09/2026 : tarif en vigueur."
+    },
+    "google/gemini-3.8-flash": {
+      "entree": 0.75,
+      "sortie": 3.75,
+      "cache_lecture": 0.075,
+      "cache_ecriture": null,
+      "_note": "Google Cloud (page tarifaire Vertex / Agent Platform) : tarif de LANCEMENT 0,75 / 3,75 jusqu'au 31/12/2026, puis 1,50 / 7,50 au 01/01/2027. Cache lu 0,075 (10 %). Google ne facture pas l'ecriture du cache au jeton mais un stockage a l'heure : non modelise (aucune campagne Gemini avec cache). Raisonnement (thoughtsTokenCount) facture en sortie, EN PLUS des jetons de reponse."
+    },
+    "google/gemini-3.1-pro-preview": {
+      "entree": 2.0,
+      "sortie": 12.0,
+      "cache_lecture": 0.2,
+      "cache_ecriture": 0.375,
+      "_note": "Google (Vertex et ai.google.dev, meme tarif), palier <=200K jetons, cas de la campagne (~9K/appel) : 2 / 12, cache lu 0,20. Au-dela de 200K : 4 / 18. cache_ecriture 0,375 = convention OpenRouter ; Google facture en realite un stockage a l'heure (aucune campagne Gemini avec cache). Raisonnement facture en sortie, en plus."
+    },
+    "deepseek-v4-pro": {
+      "entree": 1.32,
+      "sortie": 3.96,
+      "cache_lecture": 0.044,
+      "cache_ecriture": null,
+      "_note": "DeepSeek, api-docs.deepseek.com : tarif HEURE DE POINTE en vigueur depuis le 16/08/2026 : 1,32 (cache manque) / 0,044 (cache touche) / 3,96. Heures creuses = moitie (0,66 / 0,022 / 1,98). Pointe = 01:00-04:00 et 06:00-10:00 UTC, du lundi au vendredi. La campagne a tourne le jeudi 10/09/2026 de 06:09 a 08:33 UTC : ENTIEREMENT en heure de pointe. CORRECTIF 26/09 : l'ancien tarif (0,435 / 0,87) datait du 25/07, avant la tarification pointe/creux."
+    },
+    "deepseek-v4-flash": {
+      "entree": 0.3,
+      "sortie": 1.2,
+      "cache_lecture": 0.006,
+      "cache_ecriture": null,
+      "_note": "DeepSeek : l'identifiant deepseek-v4-flash est RETIRE depuis le 10/09/2026 04:00 UTC ; ses requetes sont servies par DeepSeek-V4.1-Flash et facturees au tarif Flash. Tarif HEURE DE POINTE : 0,30 / 0,006 (cache touche) / 1,20 ; heures creuses = moitie. La campagne a tourne le jeudi 10/09/2026 de 06:10 a 08:33 UTC : apres la bascule ET en heure de pointe. ATTENTION METHODE : les reponses etiquetees « DeepSeek V4 Flash » proviennent tres probablement de V4.1 Flash. CORRECTIF 26/09 : l'ancien tarif (0,14 / 0,28) etait celui de V4 Flash avant le 10/09."
+    },
+    "kimi-k3": {
+      "entree": 3.0,
+      "sortie": 15.0,
+      "cache_lecture": 0.3,
+      "cache_ecriture": null,
+      "_note": "Moonshot (api.moonshot.ai), tarif unique sur toute la fenetre de contexte : 3 (cache manque) / 0,30 (cache touche) / 15. Inchange du lancement (16/07/2026) a la campagne du 10/09/2026. Raisonnement, toujours actif, compris dans la sortie."
+    },
+    "qwen3.8-2.4t-a95b": {
+      "entree": 2.0,
+      "sortie": 6.0,
+      "cache_lecture": 0.25,
+      "cache_ecriture": null,
+      "_note": "Alibaba Model Studio international (dashscope-intl, Singapour), tarif Qwen3.8-Max dont 2.4T-A95B est la version a poids ouverts : 2 / 6, cache 0,25. Palier d'entree (requetes courtes, cas de la campagne). Raisonnement compris dans la sortie."
+    }
+  }
+}

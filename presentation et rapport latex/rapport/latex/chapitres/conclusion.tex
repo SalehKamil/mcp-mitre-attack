@@ -1,0 +1,41 @@
+
+\chapterwithtoc{Conclusion générale}
+\label{chap:conclusion}
+
+Cet essai partait d'un constat : le goulot d'étranglement d'un centre
+d'opérations de sécurité n'est pas la détection, mais la qualification de ce qui
+est détecté. Il a conçu et mesuré un écosystème ancrant un modèle de langage sur
+MITRE ATT\&CK par le \emph{Model Context Protocol}.
+
+\textbf{Les modèles seuls ne suffisent pas, et l'écart se creuse côté
+industriel.} Sur 42 échantillons produits en laboratoire, hors contamination, dix
+modèles courants ont été évalués en 1\,260 appels. Aucun ne dépasse 0,603 de F1
+technique en base stricte et les cinq premiers se tiennent en moins de 0,04 : il
+n'y a pas de vainqueur net. La ventilation par matrice est plus instructive que
+le classement --- le meilleur passe de 0,679 en Enterprise à 0,452 en ICS. Les
+vingt-trois identifiants fabriqués du panel sont tous des tactiques, et tous sur
+des journaux industriels : l'angle mort signalé par la revue est mesuré, et il
+est d'abord un défaut de repérage entre univers.
+
+\textbf{L'ancrage corrige ce que le modèle ne peut pas corriger seul.} À corpus
+et conditions identiques, le modèle retenu progresse de 0,563 à 0,706 en
+technique et de 0,587 à 0,802 en tactique. Le gain n'est pas uniforme : la
+matrice industrielle double presque, de 0,262 à 0,524, ce qui écarte
+l'hypothèse d'un effet de consigne. Surtout, le taux d'identifiants obsolètes ne
+diminue pas, il disparaît --- une classe entière d'erreurs supprimée, qu'aucun
+raisonnement ne rattrape puisque rien dans le journal ne signale que le
+référentiel a bougé depuis l'entraînement.
+
+\textbf{Le mérite revient à la conception du serveur}, non au simple accès à une
+source : une version nommée et jointe à chaque réponse, la résolution des
+révocations, une granularité d'outils bornée, une trace d'usage vérifiable. Le
+risque, lui, est déplacé et non supprimé : le serveur devient un canal
+d'instruction autant qu'une source de faits, et l'audit de cette surface reste à
+mener.
+
+Trois limites bornent ces résultats : un seul modèle évalué avec ancrage, un
+corpus de 42 échantillons, et un effort de raisonnement laissé aux valeurs par
+défaut faute d'échelle commune entre éditeurs. Reste l'enseignement principal :
+les modèles les plus capables sont les plus exposés, parce que l'attaque exploite
+l'aptitude même qui fait leur valeur. La réponse n'est pas un modèle plus grand,
+mais un cadre qui ancre, borne et journalise.

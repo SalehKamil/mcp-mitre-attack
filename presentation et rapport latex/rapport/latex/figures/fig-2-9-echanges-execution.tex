@@ -1,0 +1,101 @@
+% =====================================================================
+% fig-2-9-echanges-execution.tex
+%
+% Les quatorze échanges de la première exécution de S000 (campagne MCP),
+% dans l'ordre, entre le modèle, le harnais n8n et le serveur MCP.
+% Valeurs tirées du JSONL de campagne et du journal d'audit du serveur.
+% Quatre appels au modèle : échanges 1, 5, 9, 13 — chacun refacture
+% l'intégralité de ce qui précède.
+%
+% Bibliothèques TikZ requises : \usetikzlibrary{arrows.meta}
+% Largeur du tracé : environ 15,5 cm ; hauteur : environ 13 cm.
+% =====================================================================
+
+\definecolor{seqgris}{HTML}{4A5568}
+\definecolor{seqfleche}{HTML}{6B7280}
+\definecolor{seqllm}{HTML}{1D5FA8}
+\definecolor{seqmcp}{HTML}{2F6F66}
+\definecolor{seqjeton}{HTML}{B3541E}
+
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Stealth[length=1.8mm]},
+  tete/.style = {draw=seqgris, fill=white, rounded corners=2pt,
+                 line width=.6pt, text width=3.2cm, align=center,
+                 inner sep=4pt, font=\small\bfseries},
+  num/.style  = {circle, draw=seqgris, fill=white, line width=.5pt,
+                 inner sep=1pt, minimum size=4.2mm, font=\tiny\bfseries},
+  fl/.style   = {->, draw=seqfleche, line width=.55pt},
+  lab/.style  = {font=\tiny, inner sep=1pt, fill=white, align=center},
+  jt/.style   = {font=\tiny\bfseries, text=seqjeton, inner sep=1pt, fill=white}
+]
+
+% ---- têtes de colonnes et lignes de vie
+\node[tete, draw=seqllm, text=seqllm] (Mod) at (0,0)     {Modèle\\[-2pt]{\scriptsize\mdseries Claude Opus 4.8}};
+\node[tete]                           (N8n) at (7.4,0)   {Harnais n8n\\[-2pt]{\scriptsize\mdseries client MCP}};
+\node[tete, draw=seqmcp, text=seqmcp] (Srv) at (14.8,0)  {Serveur MCP\\[-2pt]{\scriptsize\mdseries 127.0.0.1:8733}};
+
+\foreach \x in {0,7.4,14.8}
+  \draw[seqgris, dash pattern=on 2pt off 2pt, line width=.4pt] (\x,-0.65) -- (\x,-12.15);
+
+% ---- macro locale : y, sens, numéro, texte, annotation jetons/octets
+% échange 1
+\draw[fl] (7.4,-1.1) -- node[lab, above]{consigne + 18 descriptions d'outils + journal S000}
+          node[jt, below]{6 842 jetons d'entrée (2 309 + 4 533)} (0,-1.1);
+\node[num] at (7.75,-1.1) {1};
+% échange 2
+\draw[fl] (0,-1.95) -- node[lab, above]{demande \texttt{search\_techniques(".....")}} (7.4,-1.95);
+\node[num] at (-0.35,-1.95) {2};
+% échange 3
+\draw[fl] (7.4,-2.7) -- node[lab, above]{lot JSON-RPC, 1 appel} (14.8,-2.7);
+\node[num] at (7.75,-2.7) {3};
+% échange 4
+\draw[fl] (14.8,-3.45) -- node[lab, above]{10 candidats, \texttt{T0846.001} en tête}
+          node[jt, below]{4 587 octets --- 2 ms} (7.4,-3.45);
+\node[num] at (15.15,-3.45) {4};
+% échange 5
+\draw[fl] (7.4,-4.3) -- node[lab, above]{tout l'échange 1 + sa demande + le résultat}
+          node[jt, below]{le modèle relit ce qu'il a déjà lu} (0,-4.3);
+\node[num] at (7.75,-4.3) {5};
+% échange 6
+\draw[fl] (0,-5.15) -- node[lab, above]{demande \texttt{get\_technique(T0846)}} (7.4,-5.15);
+\node[num] at (-0.35,-5.15) {6};
+% échange 7
+\draw[fl] (7.4,-5.9) -- node[lab, above]{lot JSON-RPC} (14.8,-5.9);
+\node[num] at (7.75,-5.9) {7};
+% échange 8
+\draw[fl] (14.8,-6.65) -- node[lab, above]{fiche \texttt{T0846}}
+          node[jt, below]{2 987 octets} (7.4,-6.65);
+\node[num] at (15.15,-6.65) {8};
+% échange 9
+\draw[fl] (7.4,-7.5) -- node[lab, above]{toute la conversation + la fiche} (0,-7.5);
+\node[num] at (7.75,-7.5) {9};
+% échange 10
+\draw[fl] (0,-8.35) -- node[lab, above]{demande \texttt{get\_technique(T0846.001)}} (7.4,-8.35);
+\node[num] at (-0.35,-8.35) {10};
+% échange 11
+\draw[fl] (7.4,-9.1) -- node[lab, above]{lot JSON-RPC} (14.8,-9.1);
+\node[num] at (7.75,-9.1) {11};
+% échange 12
+\draw[fl] (14.8,-9.85) -- node[lab, above]{fiche \texttt{T0846.001}}
+          node[jt, below]{3 139 octets} (7.4,-9.85);
+\node[num] at (15.15,-9.85) {12};
+% échange 13
+\draw[fl] (7.4,-10.7) -- node[lab, above]{toute la conversation + la fiche}
+          node[jt, below]{11 526 jetons d'entrée, à lui seul} (0,-10.7);
+\node[num] at (7.75,-10.7) {13};
+% échange 14
+\draw[fl] (0,-11.55) -- node[lab, above]{triplet final \texttt{TA0102 / T0846 / T0846.001}}
+          node[jt, below]{218 jetons de sortie} (7.4,-11.55);
+\node[num] at (-0.35,-11.55) {14};
+
+% ---- bandeau de synthèse
+\node[draw=seqgris, fill=white, rounded corners=2pt, line width=.5pt,
+      inner sep=6pt, text width=14.2cm, align=center, font=\tiny]
+      at (7.4,-12.85)
+{\textbf{Bilan de l'exécution} --- 4 appels au modèle : entrées cumulées
+\textcolor{seqjeton}{\textbf{37 035 jetons}}, sortie \textbf{540 jetons} ;
+serveur : \textbf{10 713 octets} rendus, \textbf{2 ms} de calcul
+(83 ms aller-retour compris) ; latence totale \textbf{13,2 s}.};
+
+\end{tikzpicture}

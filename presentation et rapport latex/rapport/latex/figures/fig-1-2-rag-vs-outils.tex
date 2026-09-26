@@ -1,0 +1,43 @@
+% Figure 1.2 --- RAG probabiliste contre accès déterministe via MCP
+\begin{tikzpicture}[etape/.style={fbase, minimum height=1.5cm, text width=2.5cm}]
+
+% ------------------------------------------------------------ RAG (axe 2)
+\node[anchor=west, font=\bfseries\large, text=figbordeaux] at (0,1.55cm)
+     {RAG (axe 2) --- probabiliste};
+
+\foreach \i/\t in {0/{Requête de\\ l'analyste},
+                   1/{Plongement\\ vectoriel},
+                   2/{Base vecto-\\rielle : top-$k$\\ par similarité},
+                   3/{$k$ passages\\ « voisins »},
+                   4/{LLM condi-\\tionné},
+                   5/{Réponse}}
+  \node[etape, draw=figbordeaux, fill=figbordeaux!4, anchor=west]
+       at ({\i*3.1cm},0) (r\i) {\t};
+
+\foreach \i in {0,...,4} {\pgfmathtruncatemacro{\j}{\i+1}
+  \draw[fgrosse] (r\i.east) -- (r\j.west);}
+
+\node[below=4pt of r2.south, font=\small, text=figbordeaux, anchor=north]
+     {surface d'attaque : la \emph{base} (5 textes $\Rightarrow$ 90 \%)};
+
+% ------------------------------------------------------------ MCP (axe 3)
+\node[anchor=west, font=\bfseries\large, text=figvert] at (0,-3.1cm)
+     {Accès déterministe via MCP (axe 3)};
+
+\foreach \i/\t in {0/{Requête de\\ l'analyste},
+                   1/{LLM : décide\\ l'appel},
+                   2/{Appel structuré\\ \texttt{get\_technique}\\ \texttt{("T1003")}},
+                   3/{Serveur MCP :\\ index précons-\\truit, $O(1)$},
+                   4/{Enregistrement\\ exact (STIX)},
+                   5/{Réponse tracée}}
+  \node[etape, draw=figvert, fill=figvert!5, anchor=west]
+       at ({\i*3.1cm},-4.75cm) (m\i) {\t};
+
+\foreach \i in {0,...,4} {\pgfmathtruncatemacro{\j}{\i+1}
+  \draw[fgrosse] (m\i.east) -- (m\j.west);}
+
+\node[below=4pt of m3.south, font=\small, text=figvert, anchor=north,
+      align=center]
+     {reproductible, journalisable ; sur-\\face d'attaque : le \emph{serveur} (axe 4)};
+
+\end{tikzpicture}

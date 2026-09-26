@@ -1,0 +1,316 @@
+%=============================================================================
+%  ESSAI — MAÎTRISE EN INFORMATIQUE — UQAC
+%  Gabarit LaTeX reproduisant la mise en forme de l'essai de référence
+%
+%  Sujet   : Intégration du référentiel MITRE ATT&CK dans un écosystème MCP
+%  Auteur  : Kamil Saleh
+%
+%  Arborescence :
+%     main.tex
+%     chapitres/chapitre1.tex, chapitre2.tex, ...
+%     figures/  (images et figures TikZ)
+%     references.bib, revue_litterature.bib
+%     logo-ia-assistance-limitee.png
+%
+%  Compilation :  latexmk -pdf main.tex
+%                 (ou pdflatex → bibtex → pdflatex → pdflatex)
+%=============================================================================
+\documentclass[12pt,letterpaper,twoside]{report}
+
+%--------------------------- Encodage et langue ------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[numbers,sort&compress]{natbib}   % à charger avant babel
+\usepackage[french]{babel}
+\usepackage{mathptmx}            % police Times (comme le modèle UQAC)
+
+%------------------------------ Mise en page ---------------------------------
+\usepackage[letterpaper,inner=3.5cm,outer=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing                  % remplacer par \doublespacing si exigé
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{caption}
+
+%--------------------------- Tableaux et figures -----------------------------
+\usepackage{array}
+\usepackage{calc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+\usepackage{etoolbox}
+\AtBeginEnvironment{verbatim}{\singlespacing}   % blocs de code compacts
+
+\usepackage[hidelinks]{hyperref}  % toujours chargé en dernier
+
+\graphicspath{{./}{images/}{figures/}}
+
+% Styles communs des figures TikZ (couleurs, boîtes, flèches)
+\input{figures/tikz-commun.tex}
+% Styles propres à l'annexe (schémas d'exécution et blocs de code)
+\input{figures/tikz-annexe.tex}
+
+%--------------------- Paramètres de l'essai (à modifier) --------------------
+\newcommand{\titreessai}{Intégration du référentiel MITRE ATT\&CK dans un écosystème MCP}
+\newcommand{\auteuressai}{Kamil Saleh}
+\newcommand{\moisdepot}{Septembre 2026}
+\newcommand{\pictogrammeia}{logo-ia-assistance-limitee.png}
+
+\definecolor{uqacvert}{RGB}{86,125,42}
+
+%--------------------------- Profondeur de titraille -------------------------
+\setcounter{secnumdepth}{3}   % numérote jusqu'à 1.2.1.1
+\setcounter{tocdepth}{2}      % table des matières : chapitres, sections, sous-sections
+                              % (mettre 3 pour y inclure aussi les sous-sous-sections)
+
+%------------------------- Titres francisés (babel) --------------------------
+\addto\captionsfrench{%
+  \renewcommand{\contentsname}{Table des matières}%
+  \renewcommand{\listfigurename}{Table des figures}%
+  \renewcommand{\listtablename}{Liste des tableaux}%
+  \renewcommand{\tablename}{Tableau}%
+  \renewcommand{\figurename}{Figure}%
+  \renewcommand{\bibname}{Bibliographie}%
+  \renewcommand{\chaptername}{Chapitre}%
+}
+
+%--------------------------- Format des titres -------------------------------
+% CHAPITRE n  /  TITRE DU CHAPITRE   (centrés, en capitales)
+\makeatletter
+\titleformat{\chapter}[display]
+  {\normalfont\normalsize\centering}
+  {\MakeUppercase{\@chapapp}\ \thechapter}   % « CHAPITRE n », puis « ANNEXE A »
+  {1.2em}
+  {\MakeUppercase}
+\makeatother
+\titlespacing*{\chapter}{0pt}{0pt}{40pt}
+
+% 1.1 TITRE DE SECTION (gras, capitales, aligné à gauche)
+\titleformat{\section}{\normalfont\normalsize\bfseries}{\thesection}{1em}{\MakeUppercase}
+\titlespacing*{\section}{0pt}{3ex plus 1ex minus .2ex}{2ex plus .2ex}
+
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{1em}{}
+\titlespacing*{\subsection}{0pt}{2.5ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
+\titleformat{\subsubsection}{\normalfont\normalsize\itshape}{\thesubsubsection}{1em}{}
+\titlespacing*{\subsubsection}{0pt}{2.2ex plus 1ex minus .2ex}{1.2ex plus .2ex}
+
+%------------------------------ En-têtes -------------------------------------
+\setlength{\headheight}{15pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}      % numéro en haut, côté extérieur
+\renewcommand{\headrulewidth}{0pt}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}}
+
+% Les versos laissés vides par \cleardoublepage ne portent pas de numéro
+\makeatletter
+\def\cleardoublepage{\clearpage\if@twoside\ifodd\c@page\else
+  \hbox{}\thispagestyle{empty}\newpage\if@twocolumn\hbox{}\newpage\fi\fi\fi}
+\makeatother
+
+%------------------------------- Légendes ------------------------------------
+% Rendu : FIGURE 1.1 – Titre de la figure   /   TABLEAU 1.1 – Titre du tableau
+% (ajouter textfont=bf pour mettre tout le texte de la légende en gras)
+\captionsetup{font=small,labelfont={sc,bf},labelsep=endash,
+              justification=justified,skip=6pt,belowskip=4pt}
+
+%-------------------- Outils repris du chapitre 1 ----------------------------
+% Chapitre non numéroté, mais inscrit dans la table des matières
+% (résumé, introduction générale, conclusion générale)
+\newcommand{\chapterwithtoc}[1]{%
+  \chapter*{#1}\addcontentsline{toc}{chapter}{#1}}
+
+% Rubrique non numérotée à l'intérieur d'une sous-section
+\newcommand{\soustitre}[1]{%
+  \par\addvspace{1.1em}%
+  {\normalsize\bfseries #1\par}%
+  \addvspace{0.25em}\nopagebreak}
+
+% Encadré « Conclusion » en fin de rubrique
+\definecolor{grisencadre}{gray}{0.96}
+\definecolor{filetencadre}{gray}{0.55}
+\newtcolorbox{encadre}{
+  enhanced, breakable,
+  colback=grisencadre, colframe=filetencadre,
+  boxrule=0pt, leftrule=2.5pt,
+  arc=0pt, outer arc=0pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  before skip=1em, after skip=1em
+}
+
+% Légende placée SOUS un longtable.
+% \begin{longtable} incrémente déjà le compteur « table » : on le corrige
+% pour que chaque tableau ne consomme qu'un seul numéro.
+\newcommand{\legendetableau}[2]{%
+  \addtocounter{table}{-1}\captionof{table}{#1}\label{#2}}
+
+% Nécessaires aux tableaux convertis depuis pandoc
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\makeatletter
+\@ifundefined{real}{\newcommand{\real}[1]{#1}}{}
+\makeatother
+
+% Figures dessinées en TikZ : le fichier est mis à l'échelle de la justification.
+\newcommand{\figuretikz}[1]{\resizebox{\linewidth}{!}{\input{figures/#1.tex}}}
+
+% Insère l'image si elle est présente, sinon un cadre de rappel.
+% Permet de compiler avant d'avoir déposé toutes les figures dans figures/.
+\newcommand{\figurefichier}[1]{%
+  \IfFileExists{#1.pdf}{\includegraphics[width=0.98\linewidth,keepaspectratio]{#1}}{%
+  \IfFileExists{#1.png}{\includegraphics[width=0.98\linewidth,keepaspectratio]{#1}}{%
+  \IfFileExists{#1.jpg}{\includegraphics[width=0.98\linewidth,keepaspectratio]{#1}}{%
+  \fbox{\begin{minipage}[c][3.5cm][c]{0.9\linewidth}\centering\itshape\small
+    Image absente : déposer le fichier \texttt{\detokenize{#1}.png} (ou .pdf)
+  \end{minipage}}}}}}
+
+% Flottants : ne pas laisser les figures s'échapper de leur section
+\renewcommand{\topfraction}{0.90}
+\renewcommand{\bottomfraction}{0.70}
+\renewcommand{\textfraction}{0.10}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+
+% Justification : évite les débordements en marge
+\tolerance=2000
+\emergencystretch=2em
+\hbadness=4000
+
+%=============================================================================
+\begin{document}
+
+%--------------------------- PAGE DE GARDE -----------------------------------
+% Page de garde centrée sur la page (marges symétriques)
+\newgeometry{letterpaper,left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\begin{titlepage}
+\singlespacing
+\centering
+
+\vspace*{\stretch{0.4}}
+
+% Logo UQAC — remplacer par le logo officiel si vous en disposez :
+% \includegraphics[width=4cm]{images/logo-uqac.png}
+{\fontsize{36}{40}\selectfont\color{uqacvert}\textsf{UQAC}}\\[4pt]
+{\small\textsf{Université du Québec}}\\
+{\small\textsf{à Chicoutimi}}
+
+\vspace{\stretch{2}}
+
+
+\begin{minipage}{0.62\textwidth}
+  \centering\bfseries\MakeUppercase{\titreessai}
+\end{minipage}
+
+
+\vspace{\stretch{2}}
+
+\textbf{ESSAI}\\[1.4\baselineskip]
+
+RÉALISÉ AU SEIN DU LABORATOIRE CYNERGIA
+
+\vspace{\stretch{1.6}}
+
+\textbf{PAR}\\[1.4\baselineskip]
+\MakeUppercase{\auteuressai}
+
+\vspace{\stretch{1.6}}
+
+% Réduire la largeur ci-dessous pour changer l'endroit de la coupure du titre,
+% ou insérer un \\ directement dans \titreessai pour forcer le retour à la ligne.
+
+
+\vspace{\stretch{1.6}}
+
+\MakeUppercase{\moisdepot}
+
+\vspace{\stretch{1.4}}
+
+% Déclaration d'utilisation de l'IA générative (pictogramme UQAC)
+\includegraphics[width=0.36\textwidth]{\pictogrammeia}
+
+\vspace*{\stretch{0.2}}
+\end{titlepage}
+\restoregeometry
+
+%--------------------------- PAGES LIMINAIRES --------------------------------
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\input{chapitres/resume.tex}
+\cleardoublepage
+
+\addcontentsline{toc}{chapter}{\contentsname}
+\tableofcontents
+\cleardoublepage
+
+\addcontentsline{toc}{chapter}{\listfigurename}
+\listoffigures
+\cleardoublepage
+
+\addcontentsline{toc}{chapter}{\listtablename}
+\listoftables
+\cleardoublepage
+
+%----------------------------- REMERCIEMENTS ---------------------------------
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+
+Je tiens à remercier en premier lieu mon directeur d'essai, Kevin Bouchard,
+ainsi que Fehmi Jaafar, pour leur encadrement, leur disponibilité et la
+rigueur de leurs conseils tout au long de ce travail. Leurs relectures
+successives et leurs questions ont orienté ce projet autant qu'elles l'ont
+corrigé.
+
+Mes remerciements vont également à Franck Jeannot, mon superviseur, dont
+l'accompagnement en contexte professionnel a permis d'ancrer cette recherche
+dans des préoccupations opérationnelles réelles.
+
+Je remercie le laboratoire Cynergia et l'ensemble de son équipe pour l'accès aux
+ressources et aux environnements de test, sans lesquels la campagne
+expérimentale présentée dans cet essai n'aurait pas été possible, ainsi que pour
+les échanges qui l'ont nourrie.
+
+Enfin, je remercie ma famille et mes proches pour leur soutien constant et pour
+leurs nombreuses relectures.
+
+%=========================== INTRODUCTION GÉNÉRALE ===========================
+\input{chapitres/introduction.tex}
+
+%================================ CHAPITRES ==================================
+\input{chapitres/chapitre1.tex}
+\input{chapitres/chapitre2.tex}
+
+% Décommenter au fur et à mesure que les chapitres sont ajoutés :
+% \input{chapitres/chapitre3.tex}
+
+%============================ CONCLUSION GÉNÉRALE ============================
+\input{chapitres/conclusion.tex}
+
+%================================= ANNEXES ===================================
+\appendix
+\input{chapitres/annexe-t0846.tex}
+
+%============================== BIBLIOGRAPHIE ================================
+\cleardoublepage
+\addcontentsline{toc}{chapter}{\bibname}
+% Style de l'UQAC s'il est présent, repli sinon.
+\IfFileExists{IEEEtranSN_francais.bst}
+  {\bibliographystyle{IEEEtranSN_francais}}
+  {\bibliographystyle{unsrtnat}}
+\bibliography{revue_litterature,references}
+
+\end{document}

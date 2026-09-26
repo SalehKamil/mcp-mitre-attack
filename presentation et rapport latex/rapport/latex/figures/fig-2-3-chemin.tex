@@ -1,0 +1,33 @@
+% Figure 2.3 --- Chemin d'une requête dans le serveur MCP
+\begin{tikzpicture}[node distance=0.75cm]
+
+\node[fgris,  minimum height=1.35cm, text width=1.9cm] (req) at (0,0)
+     {JSON-RPC\\ requête};
+\node[fbleu,  minimum height=1.35cm, text width=1.9cm, right=of req] (dec)
+     {\textbf{Décodage}\\ routage};
+\node[fbleu,  minimum height=1.35cm, text width=1.9cm, right=of dec] (val)
+     {\textbf{Validation}\\ types,\\ longueurs};
+\node[fvert,  minimum height=1.35cm, text width=1.9cm, right=of val] (mot)
+     {\textbf{Moteur}\\ mapping,\\ scoring};
+\node[frouge, minimum height=1.35cm, text width=2.3cm, right=of mot] (ser)
+     {\textbf{Sérialisation}\\ + version de base};
+\node[fgris,  minimum height=1.35cm, text width=1.9cm, right=of ser] (rep)
+     {JSON-RPC\\ réponse};
+
+\foreach \a/\b in {req/dec, dec/val, val/mot, mot/ser, ser/rep}
+  \draw[fleche] (\a) -- (\b);
+
+\node[for, text width=2.5cm, below=2.6cm of mot] (mitre)
+     {Référentiel\\ MITRE (STIX)};
+\node[for, text width=2.2cm, left=1.1cm of mitre] (interne)
+     {Référentiel\\ interne};
+\node[fgris, text width=2.6cm, minimum height=1.1cm, below=2.75cm of ser] (audit)
+     {Journal d'audit};
+
+\draw[fleche2] (mitre.north) -- (mot.south);
+\draw[fleche2, draw=figor] (interne.east) -- (mitre.west)
+      node[midway, below=1pt, font=\scriptsize\itshape, text=black!65,
+           fill=none] {étend};
+\draw[fleche] (ser.south) -- (audit.north);
+
+\end{tikzpicture}

@@ -1,0 +1,29 @@
+% Figure 2.2 --- Le référentiel MITRE vu comme objets et relations
+\begin{tikzpicture}
+
+\node[for,   minimum width=5.4cm, minimum height=1.1cm] (tac) at (0,0)
+     {Tactique\\ TA0006 --- \emph{Credential Access}};
+\node[fbleu, minimum width=5.4cm, minimum height=1.1cm, below=2.05cm of tac] (tec)
+     {Technique\\ T1003 --- \emph{OS Credential Dumping}};
+\node[fbleu, minimum width=5.4cm, minimum height=1.1cm, below=2.05cm of tec] (sub)
+     {Sous-technique\\ T1003.001 --- \emph{LSASS Memory}};
+
+\node[fvert, minimum width=5.2cm, minimum height=1.1cm,
+      right=2.6cm of tec] (mit)
+     {Mitigation\\ M1027 --- \emph{Password Policies}};
+\node[fgris, minimum width=5.2cm, minimum height=1.1cm,
+      right=2.6cm of sub] (grp)
+     {Groupe\\ G0007 --- \emph{APT28}};
+
+\draw[fleche] (tec.north) -- (tac.south)
+      node[midway, right=1pt, align=left, font=\scriptsize\itshape, text=black!65]
+      {appartient à la tactique\\ (kill chain)};
+\draw[fleche] (sub.north) -- (tec.south)
+      node[midway, right=3pt, font=\scriptsize\ttfamily, text=black!65]
+      {subtechnique-of};
+\draw[fleche] (mit.west) -- (tec.east)
+      node[midway, above, font=\scriptsize\ttfamily, text=black!65] {mitigates};
+\draw[fleche] (grp.west) -- (sub.east)
+      node[midway, above, font=\scriptsize\ttfamily, text=black!65] {uses};
+
+\end{tikzpicture}

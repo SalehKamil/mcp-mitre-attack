@@ -1,0 +1,219 @@
+RAPPORT — claude-opus-4-8 : MCP+skill
+==============================================================================
+
+
+====================================================================================================
+ETIQUETAGE — une etiquette par niveau et par execution
+----------------------------------------------------------------------------------------------------
+  VP : identifiant predit egal a l'attendu.
+  FP : identifiant predit different de l'attendu — affirmation fausse.
+  A  : abstention, aucune reponse a ce niveau (compte au rappel seul).
+  H  : HALLUCINATION, identifiant qui n'existe dans aucune version du
+       referentiel (ni vivant, ni revoque, ni deprecie).
+  F  : ANCIENNE VERSION, identifiant retire de la version figee mais
+       vivant dans une version anterieure (ICS v8, PRE-ATT&CK) —
+       referentiel interne perime, distinct de l'invention.
+  O  : OBSOLETE, identifiant revoque dont le remplacant officiel est
+       la bonne reponse.
+  MM : MAUVAISE MATRICE, identifiant pris hors de la matrice de
+       l'echantillon — sous-ensemble des FP.
+  Une prediction fausse compte FP *et* FN : elle affirme du faux et
+  manque la bonne reponse. Precision = VP/(VP+FP), Rappel = VP/(VP+FN).
+  Integrite N : controle du script, pas une metrique. Chaque
+       prediction porte une etiquette et une seule, donc les colonnes
+       VP + FP + H + O + A doivent additionner exactement N
+       (F est un sous-compte de FP, affiche pour lecture,
+       jamais additionne).
+       « oui » = l'egalite tombe juste.
+       Sinon la cellule donne le TOTAL A ATTEINDRE, l'ecart entre
+       parentheses, et les executions fautives quand elles sont
+       identifiables (echantillon#execution). Les F1 de la ligne
+       sont alors a rejeter tant que l'ecart n'est pas explique.
+  Sous-technique : uniquement les echantillons qui en possedent une.
+====================================================================================================
+Modele                   Condition       Niveau              N    VP    FP     H     F     O     A    MM  Integrite N
+claude-opus-4-8          MCP+skill       Tactique          126   110    16     0     0     0     0     0  oui
+claude-opus-4-8          MCP+skill       Technique         126    93    33     0     0     0     0     0  oui
+claude-opus-4-8          MCP+skill       Sous-technique     66    50    16     0     0     0     0     0  oui
+F additionne les identifiants DEPRECIES de la version figee (retires
+sans remplacant, ex. T0808) et ceux d'une version historique absents
+de la figee (ex. TA0024) ; les deprecies restent des FP dans N.
+
+====================================================================================================
+ATTRIBUTS DE DIAGNOSTIC
+----------------------------------------------------------------------------------------------------
+  MM : identifiants hors de la matrice de l'echantillon, 3 niveaux.
+  s-t nie : repond « aucune » alors qu'une sous-technique existe —
+            une affirmation fausse, pas une abstention.
+  scis19 : TA0005 propose la ou TA0112 est attendu (scission v19).
+  format : reponses rejetees imputables au modele (format non
+           respecte, JSON invalide, reponse vide, troncature).
+  Sur-sp. : sur-specification — sous-technique proposee la ou la
+            verite de terrain n'en attend aucune.
+  N1, N2 : sous-specification — technique sans sous-technique la ou
+           elle est attendue. Le format impose les trois champs :
+           une valeur nulle est une propriete du protocole.
+====================================================================================================
+Modele                   Condition          MM  s-t nie  scis19  format  Sur-sp.     N1     N2
+claude-opus-4-8          MCP+skill           0        7       0       0    16.7%   0.0%   0.0%
+
+====================================================================================================
+VENTILATION PAR MATRICE — F1 stricts
+----------------------------------------------------------------------------------------------------
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Les memes executions, reparties selon la matrice prescrite par
+  l'echantillon : enterprise (zone TI) ou ics (zone TO).
+  n s-t : echantillons possedant une sous-technique attendue.
+====================================================================================================
+Modele                   Condition       Matrice          n  F1 tact  F1 tech   F1 s-t  n s-t
+claude-opus-4-8          MCP+skill       enterprise      84    0.881    0.857    0.794     63
+claude-opus-4-8          MCP+skill       ics             42    0.857    0.500    0.000      3
+
+==============================================================================
+QUALITE DU MAPPING — BASE STRICTE
+------------------------------------------------------------------------------
+  Base STRICTE : les identifiants obsoletes comptent comme des erreurs.
+  Base TOLERANTE : ils sont credites, leur remplacant officiel etant la
+  bonne reponse. L'ecart entre les deux mesure l'actualite du referentiel
+  interne du modele, et rien d'autre.
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Une ligne par NIVEAU : les trois se lisent l'un sous l'autre.
+  MauvMat : effectif des identifiants hors matrice a ce niveau.
+  Halluc / Fant / Obsol : part des affirmations de ce niveau.
+  Abst. : part des reponses sans identifiant a ce niveau.
+  F1 : moyenne harmonique de la precision et du rappel.
+  Stab. : part des echantillons dont les executions repetees
+          rendent le meme triplet — une valeur par modele et
+          condition, ecrite sur la premiere ligne du bloc.
+==============================================================================
+Modele                   Condition       Niveau           MauvMat  Halluc   Fant   Obsol   Abst.       F1   Stab.
+claude-opus-4-8          MCP+skill       Tactique               0    0.0%   0.0%    0.0%    0.0%    0.873   85.7%
+                                         Technique              0    0.0%   0.0%    0.0%    0.0%    0.738        
+                                         Sous-technique         0    0.0%   0.0%    0.0%    0.0%    0.758        
+
+==============================================================================
+QUALITE DU MAPPING — BASE TOLERANTE
+------------------------------------------------------------------------------
+  Base STRICTE : les identifiants obsoletes comptent comme des erreurs.
+  Base TOLERANTE : ils sont credites, leur remplacant officiel etant la
+  bonne reponse. L'ecart entre les deux mesure l'actualite du referentiel
+  interne du modele, et rien d'autre.
+  Condition : ce dont le modele disposait — sans (memoire seule), MCP
+  (outils du serveur), MCP+skill (outils et procedure de mapping).
+  Une ligne par NIVEAU : les trois se lisent l'un sous l'autre.
+  MauvMat : effectif des identifiants hors matrice a ce niveau.
+  Halluc / Fant / Obsol : part des affirmations de ce niveau.
+  Abst. : part des reponses sans identifiant a ce niveau.
+  F1 : moyenne harmonique de la precision et du rappel.
+  Stab. : part des echantillons dont les executions repetees
+          rendent le meme triplet — une valeur par modele et
+          condition, ecrite sur la premiere ligne du bloc.
+==============================================================================
+Modele                   Condition       Niveau           MauvMat  Halluc   Fant   Obsol   Abst.       F1   Stab.
+claude-opus-4-8          MCP+skill       Tactique               0    0.0%   0.0%    0.0%    0.0%    0.873   85.7%
+                                         Technique              0    0.0%   0.0%    0.0%    0.0%    0.738        
+                                         Sous-technique         0    0.0%   0.0%    0.0%    0.0%    0.758        
+
+==============================================================================
+DIAGNOSTIC MCP — les deux questions, par modele
+------------------------------------------------------------------------------
+  Utilise : part des executions ayant emis au moins un appel
+            d'outil (100 % par construction si le premier appel
+            est impose par le harnais).
+  Appels/ex : nombre moyen d'appels d'outil par execution.
+  Rep. ancrees : la TECHNIQUE retenue a ete rendue par un outil
+            du serveur — le mapping s'appuie sur le referentiel.
+  Prefere memoire : la technique retenue ne figure dans aucune
+            reponse du serveur — le modele a repondu de memoire
+            alors que les outils etaient a sa disposition.
+==============================================================================
+Modele                      Utilise  Appels/ex Rep. ancrees Prefere memoire
+claude-opus-4-8              100.0%        3.8       100.0%           0.0%
+
+==============================================================================
+SKILL — version et chargement, par modele
+------------------------------------------------------------------------------
+  empreinte : signature FNV-1a du fichier SKILL.md effectivement
+            servi — rattache la campagne a une version exacte.
+  mode : integral (corps ajoute au prompt systeme) ou sur_demande
+            (charge seulement si le modele appelle l'outil).
+  procedure chargee : part des executions ayant reellement vu la
+            procedure.
+==============================================================================
+  claude-opus-4-8          empreinte f45654d6bd5b29af | mode integral | 126 execution(s)
+                           procedure chargee : 100.0%
+
+==============================================================================
+COUT — jetons, temps et efficacite
+------------------------------------------------------------------------------
+  Jetons : moyenne par execution, telle que l'API la rapporte.
+           Avec cache de prompt, la consommation reelle vaut
+           entree + cache lu + cache ecrit ; le cout en dollars se
+           calcule sur cette somme, pas sur la seule entree.
+  p50 / p95 : latence mediane et 95e centile de l'appel reussi, en
+           millisecondes (interpolation NumPy). Le temps est un cout
+           d'exploitation ; le p95 est le pire cas ordinaire.
+  Effic. S / T : F1 technique par millier de jetons, en base stricte
+           puis tolerante. Seul indicateur du tableau qui depende de
+           la base.
+  Argent : cout de la campagne — entree, sortie et cache
+           factures chacun a son tarif, sur les seules
+           executions retenues. Tarifs du 16 septembre 2026 (tarifs.json) ;
+           « - » = tarif non renseigne pour ce modele.
+==============================================================================
+Rang Modele                   Condition           Jetons    p50 ms    p95 ms  Effic. S  Effic. T     Argent
+-    claude-opus-4-8          MCP+skill            69234     19487     30110     0.011     0.011    45.71 $
+
+====================================================================================================
+USAGE DU SERVEUR MCP — campagnes avec serveur uniquement
+====================================================================================================
+Modele                  Util. App/ex Tou/ex Pertin. Hall.out    Err Dementi Ancrees Matrice AvFaux
+claude-opus-4-8        100.0%    3.8    3.7   99.2%    0.0%      0      1  100.0%  100.0%      0
+Util. = executions ayant emis au moins un appel (100 % si le premier
+appel est impose). App/ex, Tou/ex = appels et tours par execution.
+Pertin. = appels vers un outil rendant des identifiants. Hall.out =
+appels vers un outil inexistant. Err = arguments refuses. Dementi =
+identifiant soumis puis declare introuvable. Ancrees = l'identifiant
+retenu a ete rendu par un outil. Matrice = recherches portant la bonne
+matrice. AvFaux = homonymie signalee puis identifiant hors matrice retenu.
+  claude-opus-4-8 — outils appeles : get_technique=237, search_techniques=165, get_tactic=70, get_datasources=3, internal_reload=1
+  claude-opus-4-8 — garde-fous du serveur : revoquee=12
+  claude-opus-4-8 — executions 100% conformes en matrice : 100.0% (121 / 121)
+
+====================================================================================================
+SERVEUR CONTRE MODELE — la bonne reponse a-t-elle ete fournie,
+                        puis retenue ?
+----------------------------------------------------------------------------------------------------
+  Le serveur ne rend pas une reponse mais une LISTE de candidats ;
+  c'est le modele qui choisit. Les deux lignes ne mesurent donc pas
+  la meme chose, et aucune precision n'est calculee pour le serveur.
+  Serveur MCP : part des executions ou la bonne reponse figure parmi
+       les identifiants rendus par les outils — le plafond atteignable.
+  Modele : part des executions ou la reponse finale est la bonne —
+       c'est le VP du tableau d'etiquetage, en pourcentage.
+  Perte de selection : l'ecart entre les deux lignes, en points. La
+       bonne reponse etait disponible et n'a pas ete retenue.
+  Jamais fournie, faux : le serveur ne l'a pas rendue et le modele
+       s'est trompe — marge de la recherche, pas de la selection.
+  Cand./ex : identifiants distincts rendus par execution, en moyenne.
+====================================================================================================
+
+claude-opus-4-8 — MCP+skill
+                                Tactique     Technique  Sous-technique
+  Serveur MCP (fournie)            96.0%         95.2%           97.0%
+  Modele (retenue)                 87.3%         73.8%           75.8%
+  Perte de selection             8.7 pts      21.4 pts        21.2 pts
+  Jamais fournie, faux              4.0%          4.8%            3.0%
+  Executions comptees            n = 126       n = 126          n = 66
+  Cand./ex : 29.4 identifiants distincts par execution
+[!] openpyxl n'est pas installe : le classeur xlsx ne
+    peut pas etre produit. Les memes donnees restent
+    disponibles dans les trois CSV et le rapport texte.
+    Pour le classeur : pip install openpyxl
+
+[*] donnees CSV : G:\Mon disque\Etudes\Maitrise UQAC\Essaie_2026\mcp-mitre-att&ck\cas_d_usage\workflow_evaluation\rapports\metriques_claude-opus-4-8_MCP-skill.csv
+    trois sections dans le meme fichier — METRIQUES PAR
+    MODELE, ETIQUETAGE DETAILLE, USAGE MCP — chacune ouverte
+    par une ligne ### et fermee par une ligne vide.

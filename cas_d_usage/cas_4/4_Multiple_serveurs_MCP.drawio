@@ -1,0 +1,167 @@
+<mxfile host="Electron" agent="Claude">
+  <diagram name="MCP multi-signaux OT" id="diag4">
+    <mxGraphModel dx="1848" dy="1274" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;fontSize=20;" value="4 - Agent LLM connecté à plusieurs MCP (signaux OT, électriques, physiques, cyber)" vertex="1">
+          <mxGeometry height="40" width="1500" x="200" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ana" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;html=1;fillColor=#FFF;strokeColor=#333;" value="Analyste" vertex="1">
+          <mxGeometry height="60" width="40" x="20" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="if" parent="1" style="rounded=1;html=1;fillColor=#E8E8E0;strokeColor=#A0A090;fontColor=#555;fontSize=11;" value="&lt;b&gt;Interface chat n8n&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Requête + Réponse&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="200" x="140" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="ct" parent="1" style="rounded=1;html=1;fillColor=#C9DAF8;strokeColor=#5B7CB0;fontColor=#1F3864;fontSize=11;" value="&lt;b&gt;Chat Trigger&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Réception requête&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="510" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ag" parent="1" style="rounded=1;html=1;fillColor=#D4C5E8;strokeColor=#7B68A6;fontColor=#3F2A6B;fontSize=11;" value="&lt;b&gt;Agent LLM&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Claude / GPT-4o / Llama / Mistral&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="510" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="rr" parent="1" style="rounded=1;html=1;fillColor=#D4E6C5;strokeColor=#6B8E5A;fontColor=#2F5523;fontSize=11;" value="&lt;b&gt;Rédaction rapport&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Par l&#39;Agent LLM&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="210" x="430" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="mc" parent="1" style="rounded=1;html=1;fillColor=#C5E6D4;strokeColor=#5A8E7B;fontColor=#1F5544;fontSize=11;" value="&lt;b&gt;MCP Client Tool&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Pont vers serveurs MCP&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="200" x="660" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="m1" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP Processus OT&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;OPC-UA / Modbus / DNP3&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="210" x="990" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP Signaux élèctriques&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;PMU C37.118 / IEC 61850&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="980" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP Capteurs physiques&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Vibration / Thermique / Gaz&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="980" y="515" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP Outils SOC (Cybersécurité)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Splunk / EDR / IDS&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="980" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="m6" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP MITRE ATT&amp;amp;CK for ICS&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Mapping TTP industriel&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="980" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" parent="1" style="rounded=1;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" value="&lt;b&gt;PLC / SCADA&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Siemens / Schneider / Rockwell&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="1280" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="1" style="rounded=1;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" value="&lt;b&gt;Postes électriques&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;PMU + Relais protection (SEL/ABB)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="1280" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" parent="1" style="rounded=1;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" value="&lt;b&gt;Capteurs physiques&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;Accéléromètres / IR / H2 / CO&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="1280" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" parent="1" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="&lt;b&gt;Endpoints &amp;amp; réseau&amp;nbsp;&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;SIEM (Splunk) / EDR (CrowdStrike) / IDS (Suricata)&lt;br&gt;Pare-feu (FortiGate)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1280" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" parent="1" style="rounded=1;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="&lt;b&gt;Base ATT&amp;amp;CK ICS&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;JSON / STIX 2.1 / TAXII&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="1280" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" edge="1" parent="1" source="ana" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=10;" target="if" value="réponse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" edge="1" parent="1" source="if" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=10;" target="ct" value="requête">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="235" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a3" edge="1" parent="1" source="ct" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=10;" target="ag" value="requête">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" edge="1" parent="1" source="ag" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=10;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="mc" value="appel">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a5" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=10;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" target="ag" value="résultats">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" edge="1" parent="1" source="ag" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=10;" target="rr" value="rédige">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="535" y="550" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a7" edge="1" parent="1" source="rr" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=10;" target="if" value="rapport">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="820" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b1" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="m1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b3" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="m3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b4" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="m4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b5" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="m5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b6" edge="1" parent="1" source="mc" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="m6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="855" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c1" edge="1" parent="1" source="m1" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="s1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" edge="1" parent="1" source="m3" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" edge="1" parent="1" source="m4" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="s4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" edge="1" parent="1" source="m5" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="s5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" edge="1" parent="1" source="m6" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;" target="s6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ti_3QHhn96UE12Ekcbn6-2" parent="1" style="rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="&lt;b&gt;MCP Confluence&lt;/b&gt;" vertex="1">
+          <mxGeometry height="70" width="220" x="980" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="ti_3QHhn96UE12Ekcbn6-3" edge="1" parent="1" style="endArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;entryX=0.045;entryY=0.857;entryDx=0;entryDy=0;entryPerimeter=0;" target="ti_3QHhn96UE12Ekcbn6-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="1010" />
+            </Array>
+            <mxPoint x="750" y="790" as="sourcePoint" />
+            <mxPoint x="970" y="1040" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ti_3QHhn96UE12Ekcbn6-4" edge="1" parent="1" source="ti_3QHhn96UE12Ekcbn6-2" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#3366CC;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" target="ti_3QHhn96UE12Ekcbn6-5">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1200" y="1027" as="sourcePoint" />
+            <mxPoint x="1280" y="1043" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ti_3QHhn96UE12Ekcbn6-5" parent="1" style="rounded=1;html=1;fillColor=#DBE5F4;strokeColor=#5B7BA6;fontColor=#22446B;fontSize=11;" value="&lt;b&gt;Espace Confluence Hydro-Quéebec&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px&quot;&gt;Projets / CVE&lt;/span&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="1280" y="990" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

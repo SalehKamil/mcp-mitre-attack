@@ -1,0 +1,25 @@
+% Figure 1.6 --- Hiérarchie à trois niveaux du référentiel (technique T1059)
+\begin{tikzpicture}[node distance=0pt]
+
+\node[fbase, draw=none, fill=figbleu!12, minimum width=5.6cm, minimum height=1.1cm]
+     (tac) at (0,0)
+     {\textbf{Tactique --- TA0002}\\ Execution};
+
+\node[fbase, draw=none, fill=figbleu!8, minimum width=7.2cm, minimum height=1.1cm,
+      below=1.15cm of tac] (tec)
+     {\textbf{Technique --- T1059}\\ Command and Scripting Interpreter};
+
+\draw[fpale] (tac) -- (tec);
+
+\foreach \i/\id/\nom in {0/T1059.001/PowerShell,
+                         1/T1059.003/{Windows\\Command Shell},
+                         2/T1059.004/Unix Shell,
+                         3/T1059.006/Python,
+                         4/T1059.007/JavaScript}
+{
+  \node[fblanc, minimum width=2.55cm, minimum height=1.05cm]
+       (s\i) at ({(\i-2)*2.85cm}, -4.45cm) {\id\\ \nom};
+  \draw[fpale] (tec.south) -- (s\i.north);
+}
+
+\end{tikzpicture}

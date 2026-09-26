@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "organisation": "HQ",
+    "version": "1",
+    "dernier_id_attribue": "",
+    "description": "Referentiel interne de techniques. Une fiche n'existe que si MITRE ATT&CK ne couvre pas le comportement, ou le couvre trop generiquement pour notre contexte. Elle reste ancree a ATT&CK par technique_mitre_liee.",
+    "regles": "Ajout et validation par revue humaine uniquement. Le serveur MCP sert ce fichier en lecture seule et n'y ecrit jamais. Numerotation continue : un identifiant retire n'est jamais reattribue. A chaque nouvelle fiche, remonter dernier_id_attribue au meme identifiant : c'est cette cle, et elle seule, qui empeche la reattribution d'un numero apres un redemarrage du serveur."
+  },
+  "techniques": []
+}

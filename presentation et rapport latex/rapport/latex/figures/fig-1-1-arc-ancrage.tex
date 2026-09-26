@@ -1,0 +1,38 @@
+% Figure 1.1 --- L'arc de l'ancrage : trois générations d'approches
+\begin{tikzpicture}
+
+\node[fbleu, anchor=north west, align=left, text width=5.1cm, inner sep=7pt]
+      at (0,0) (a)
+     {{\bfseries\color{figbleu} 1. Classification (axe 1)}\\[3pt]
+      \emph{Mécanisme} : un modèle affiné range un texte dans une catégorie
+      ATT\&CK (TRAM) ou en extrait un graphe (AttacKG).\\[3pt]
+      \emph{Chiffre} : GPT-4 $\approx$ 0,64 F1, Llama-3-8B $\approx$ 0,16
+      (CTIBench).\\[3pt]
+      \emph{Limite} : couverture partielle, plafond structurel.};
+
+\node[fbord, anchor=north west, align=left, text width=5.1cm, inner sep=7pt]
+      at (6.4cm,0.55cm) (b)
+     {{\bfseries\color{figbordeaux} 2. Récupération --- RAG (axe 2)}\\[3pt]
+      \emph{Mécanisme} : le modèle raisonne sur des passages récupérés par
+      similarité vectorielle.\\[3pt]
+      \emph{Chiffre} : 5 textes piégés dans 2,6 M de documents
+      $\Rightarrow$ 90 \% d'attaques réussies (PoisonedRAG).\\[3pt]
+      \emph{Limite} : voisin $\neq$ pertinent ; base empoisonnable.};
+
+\node[fvert, anchor=north west, align=left, text width=5.1cm, inner sep=7pt]
+      at (12.8cm,0) (c)
+     {{\bfseries\color{figvert} 3. Outils --- MCP (axe 3)}\\[3pt]
+      \emph{Mécanisme} : le modèle exécute une requête structurée sur une base
+      formelle indexée.\\[3pt]
+      \emph{Chiffre} : un modèle outillé de 6,7 G bat GPT-3 (175 G) $\times$3
+      en arithmétique (Toolformer).\\[3pt]
+      \emph{Limite} : le risque passe du texte à l'action (axe 4).};
+
+\draw[fgrosse] ($(a.east)+(0,-0.3cm)$) -- ($(b.west)+(0,-0.85cm)$);
+\draw[fgrosse] ($(b.east)+(0,-0.85cm)$) -- ($(c.west)+(0,-0.3cm)$);
+
+\node[below=3pt of a.south, font=\scriptsize, text=black!55] {$\sim$2021--2024};
+\node[below=3pt of b.south, font=\scriptsize, text=black!55] {2024--2025};
+\node[below=3pt of c.south, font=\scriptsize, text=black!55] {2025--2026};
+
+\end{tikzpicture}

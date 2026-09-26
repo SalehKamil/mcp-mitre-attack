@@ -1,0 +1,158 @@
+<mxfile host="Electron" agent="Claude">
+  <diagram name="Interrogation MCP - Laboratoire virtuel" id="diag3">
+    <mxGraphModel dx="2184" dy="1505" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2100" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=24;fontStyle=0;" value="3 - Interrogation du serveur MCP connecté au laboratoire virtuel" vertex="1">
+          <mxGeometry height="40" width="1300" x="400" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="analyste" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#333333;" value="Analyste" vertex="1">
+          <mxGeometry height="60" width="40" x="60" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="iface" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E0;strokeColor=#A0A090;fontColor=#555555;fontSize=12;" value="&lt;b&gt;Interface chat n8n&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Requête + Réponse&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="220" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="chat_trigger" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C9DAF8;strokeColor=#5B7CB0;fontColor=#1F3864;fontSize=12;" value="&lt;b&gt;Chat Trigger&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Réception requête&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="700" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="agent_llm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4C5E8;strokeColor=#7B68A6;fontColor=#3F2A6B;fontSize=12;" value="&lt;b&gt;Agent LLM&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Claude / GPT-4o / Llama / Mistral&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="690" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C5E6D4;strokeColor=#5A8E7B;fontColor=#1F5544;fontSize=12;" value="&lt;b&gt;MCP Client Tool&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Pont vers serveur MCP&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="820" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="redaction" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4E6C5;strokeColor=#6B8E5A;fontColor=#2F5523;fontSize=12;" value="&lt;b&gt;Rédaction rapport&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Par l&#39;Agent LLM&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="580" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp_mitre" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8C5C5;strokeColor=#A65B5B;fontColor=#6B2222;fontSize=12;" value="&lt;b&gt;Serveur MCP MITRE&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Python — externe&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="260" x="1240" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="base_conn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8DBC5;strokeColor=#A68F5B;fontColor=#5B4422;fontSize=12;" value="&lt;b&gt;Base de connaissance&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;JSON / STIX 2.1 / TAXII&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1430" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="collecteur_logs" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0C5D9;strokeColor=#8E5A7B;fontColor=#5B2244;fontSize=12;" value="&lt;b&gt;Collecteur de logs&lt;/b&gt;&lt;br&gt;&lt;span style=&#39;font-size:11px&#39;&gt;Format OCSF&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1250" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="zone_labo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;verticalAlign=top;fontSize=14;fontStyle=1;" value="Laboratoire VMWare virtuel" vertex="1">
+          <mxGeometry height="500" width="457.5" x="1620" y="595" as="geometry" />
+        </mxCell>
+        <mxCell id="dmz_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;verticalAlign=top;fontSize=11;fontStyle=1;" value="DMZ" vertex="1">
+          <mxGeometry height="160" width="220" x="1840" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="dmz_ubuntu" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9A227;fontColor=#5B4422;fontSize=10;" value="Ubuntu Server&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;(Nginx/SSH)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="50" width="95" x="1900" y="667.5" as="geometry" />
+        </mxCell>
+        <mxCell id="dmz_art" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C9A227;fontColor=#5B4422;fontSize=10;" value="Atomic Red&lt;br&gt;Team (ART)" vertex="1">
+          <mxGeometry height="50" width="200" x="1850" y="725" as="geometry" />
+        </mxCell>
+        <mxCell id="opnsense" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#666666;fontColor=#333333;fontSize=10;fontStyle=1;" value="OPNsense&lt;br&gt;Firewall/Router" vertex="1">
+          <mxGeometry height="50" width="140" x="1780" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="soc_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4D9E0;strokeColor=#A65B7B;dashed=1;verticalAlign=top;fontColor=#7B2244;fontSize=11;fontStyle=1;" value="SOC" vertex="1">
+          <mxGeometry height="160" width="220" x="1740" y="910" as="geometry" />
+        </mxCell>
+        <mxCell id="soc_splunk" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A65B7B;fontColor=#5B2244;fontSize=10;" value="Splunk&lt;br&gt;&lt;span style=&#39;font-size:10px&#39;&gt;(SIEM)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="110" width="175" x="1762.5" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="lan_zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E5F4;strokeColor=#5B7CB0;dashed=1;verticalAlign=top;fontColor=#22447B;fontSize=11;fontStyle=1;" value="Parc Windows" vertex="1">
+          <mxGeometry height="120" width="180" x="1640" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="lan_win_srv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B7CB0;fontColor=#22447B;fontSize=10;" value="Windows &lt;br&gt;Server" vertex="1">
+          <mxGeometry height="35" width="75" x="1655" y="682.5" as="geometry" />
+        </mxCell>
+        <mxCell id="lan_art" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B7CB0;fontColor=#22447B;fontSize=10;" value="Atomic Red Team (ART)" vertex="1">
+          <mxGeometry height="35" width="160" x="1655" y="725" as="geometry" />
+        </mxCell>
+        <mxCell id="lan_win11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B7CB0;fontColor=#22447B;fontSize=10;" value="Windows 11" vertex="1">
+          <mxGeometry height="35" width="75" x="1740" y="682.5" as="geometry" />
+        </mxCell>
+        <mxCell id="link_dmz" edge="1" parent="1" source="opnsense" style="endArrow=none;html=1;strokeColor=#666666;strokeWidth=2;" target="dmz_zone">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="link_soc" edge="1" parent="1" source="opnsense" style="endArrow=none;html=1;strokeColor=#666666;strokeWidth=2;" target="soc_zone">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="link_lan" edge="1" parent="1" source="opnsense" style="endArrow=none;html=1;strokeColor=#666666;strokeWidth=2;" target="lan_zone">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="analyste" style="endArrow=classic;startArrow=classic;html=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;" target="iface" value="réponse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="iface" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="chat_trigger" value="requête">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="chat_trigger" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;" target="agent_llm" value="requête">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=0.7;exitY=1;exitDx=0;exitDy=0;entryX=0.217;entryY=0.005;entryDx=0;entryDy=0;entryPerimeter=0;" target="mcp_client" value="appel">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;entryX=0.15;entryY=0.996;entryDx=0;entryDy=0;entryPerimeter=0;" target="mcp_mitre" value="appel">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1140" y="667.5" />
+            </Array>
+            <mxPoint x="1060" y="667.5" as="sourcePoint" />
+            <mxPoint x="1306.4102564102564" y="321.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="mcp_mitre" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;entryX=0.3;entryY=-0.017;entryDx=0;entryDy=0;entryPerimeter=0;" target="base_conn" value="lecture">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1502" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_log1" edge="1" parent="1" source="mcp_mitre" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=11;exitX=0.444;exitY=0.958;exitDx=0;exitDy=0;entryX=0.4;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;" target="collecteur_logs" value="lecture">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="agent_llm" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.223;exitY=0.889;exitDx=0;exitDy=0;entryX=0.7;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;" target="redaction" value="rédige">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="redaction" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;" target="iface" value="rapport">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="mcp_client" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.4;exitY=0;exitDx=0;exitDy=0;" value="résultats">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="916" y="480" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="mcp_mitre" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;entryX=0.822;entryY=-0.027;entryDx=0;entryDy=0;entryPerimeter=0;" target="mcp_client" value="résultats">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1160" y="280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="base_conn" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.424;exitY=-0.039;exitDx=0;exitDy=0;exitPerimeter=0;" target="mcp_mitre" value="données">
+          <mxGeometry relative="1" x="0.1504" y="1" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1530" y="340" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_log2" edge="1" parent="1" source="collecteur_logs" style="endArrow=classic;html=1;dashed=1;strokeColor=#4F7942;fontColor=#4F7942;fontSize=11;exitX=0.6;exitY=0;exitDx=0;exitDy=0;entryX=0.6;entryY=1;entryDx=0;entryDy=0;" target="mcp_mitre" value="logs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_lab_logs" edge="1" parent="1" source="soc_splunk" style="endArrow=classic;html=1;strokeColor=#3366CC;fontColor=#3366CC;fontSize=12;fontStyle=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;" target="collecteur_logs" value="logs">
+          <mxGeometry relative="1" x="0.001" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1370" y="1020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

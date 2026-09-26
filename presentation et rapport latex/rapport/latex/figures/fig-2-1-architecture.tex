@@ -1,0 +1,40 @@
+% Figure 2.1 --- Architecture MCP : hôte, client, serveur
+\begin{tikzpicture}
+
+\node[fblanc, fill=black!5, draw=black!30, minimum width=2.9cm,
+      minimum height=1.25cm] (mod) at (0,0) {\normalsize Modèle};
+\node[fblanc, fill=black!5, draw=black!30, minimum width=3.1cm,
+      minimum height=1.25cm, right=2.5cm of mod] (cli) {\normalsize Client MCP};
+
+\draw[fleche2] (mod.east) -- (cli.west)
+      node[midway, above=1pt, align=center, font=\scriptsize\itshape,
+           text=black!65] {appel d'outil\\ résultat};
+
+\begin{scope}[on background layer]
+  \node[draw=black!30, fill=white, line width=0.7pt, rounded corners=2pt,
+        fit=(mod)(cli), inner sep=11pt] (hote) {};
+\end{scope}
+
+\node[anchor=south west, font=\bfseries] at ($(hote.north west)+(0,0.3cm)$)
+     {Hôte --- application (assistant, agent, orchestrateur)};
+
+\node[fvert, anchor=west, minimum width=6.6cm, minimum height=1.8cm]
+      at ($(hote.east)+(4.2cm,0)$) (srv)
+     {{\normalsize Serveur MCP MITRE}\\[3pt] dix-huit outils};
+
+\draw[fleche2] (hote.east) -- (srv.west)
+      node[midway, above=7pt, font=\scriptsize\itshape, text=black!65] {JSON-RPC}
+      node[midway, below=4pt, align=center, font=\scriptsize\itshape,
+           text=black!65] {stdio ou HTTP local\\ connexion un-à-un};
+
+\node[for, anchor=north, text width=3.5cm, minimum height=1.35cm]
+      at ($(srv.south)+(-2.0cm,-2.3cm)$) (mitre)
+     {Référentiel MITRE\\ (STIX)};
+\node[for, anchor=north, text width=3.5cm, minimum height=1.35cm]
+      at ($(srv.south)+(2.4cm,-2.3cm)$) (interne)
+     {Référentiel interne\\ (fiches locales)};
+
+\draw[fleche] (mitre.north)   -- ($(srv.south)+(-0.9cm,0)$);
+\draw[fleche] (interne.north) -- ($(srv.south)+(0.9cm,0)$);
+
+\end{tikzpicture}

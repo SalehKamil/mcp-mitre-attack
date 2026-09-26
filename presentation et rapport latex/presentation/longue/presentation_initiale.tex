@@ -1,0 +1,952 @@
+% ===========================================================================
+%  PRÉSENTATION DU PROJET — Intégration de MITRE ATT&CK dans un écosystème MCP
+%  Partie livrée aujourd'hui : PAGE DE PRÉSENTATION + INTRODUCTION / MISE EN
+%  CONTEXTE (diapositives 1 à 6), avec le script complet du présentateur.
+%
+%  Le script parlé est placé dans les  de chaque diapositive.
+%  Pour l'afficher :
+%    - sous chaque diapositive :   décommenter  \setbeameroption{show notes}
+%    - sur un second écran :       décommenter  la ligne pgfpages ci-dessous
+%  Pour le jury : compiler SANS notes (état par défaut).
+% ===========================================================================
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+% ---------------------------------------------------------------------------
+%  Palette (identique au rapport, pour la cohérence visuelle)
+% ---------------------------------------------------------------------------
+\definecolor{colTitre}{HTML}{1F3A5F}   % bleu profond
+\definecolor{colAccent}{HTML}{B5462E}  % brique
+\definecolor{colGris}{HTML}{4A4A4A}
+\definecolor{colFond}{HTML}{F4F1EA}    % ivoire
+\definecolor{colOutil}{HTML}{1F5F4A}   % vert
+\definecolor{colOr}{HTML}{C9A227}
+
+% ---------------------------------------------------------------------------
+%  Thème sobre et personnalisé
+% ---------------------------------------------------------------------------
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{blocks}[rounded][shadow=false]
+\setbeamercolor{structure}{fg=colTitre}
+\setbeamercolor{frametitle}{fg=colTitre}
+\setbeamercolor{normal text}{fg=colGris}
+\setbeamercolor{alerted text}{fg=colAccent}
+\setbeamercolor{block title}{bg=colTitre, fg=white}
+\setbeamercolor{block body}{bg=colFond, fg=colGris}
+\setbeamercolor{block title example}{bg=colOutil, fg=white}
+\setbeamercolor{block body example}{bg=colOutil!8, fg=colGris}
+\setbeamerfont{frametitle}{series=\bfseries, size=\large}
+\setbeamertemplate{itemize item}{\textcolor{colAccent}{\small$\blacksquare$}}
+\setbeamertemplate{itemize subitem}{\textcolor{colOr}{\small$\blacktriangleright$}}
+
+% Titre de diapositive avec filet accentué
+\setbeamertemplate{frametitle}{%
+  \vspace{0.55em}%
+  {\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\par}%
+  \vspace{0.18em}{\color{colAccent}\rule{0.30\textwidth}{1.1pt}}\vspace{0.25em}%
+}
+
+% Pied de page discret
+
+\newcommand{\grandchiffre}[2]{%
+  \begin{center}
+    {\fontsize{26}{28}\selectfont\bfseries\color{colAccent}#1}\\[2pt]
+    {\small\color{colGris}#2}
+  \end{center}}
+
+\title{Intégration du framework MITRE ATT\&CK\\ dans un écosystème MCP pour la détection}
+\author{Kamil Saleh}
+\date{\today}
+
+\begin{document}
+
+
+
+% ===========================================================================
+%  DIAPOSITIVE 1 — Page de présentation
+% ===========================================================================
+
+
+\begin{frame}[plain]
+  \begin{center}
+    \vspace{0.9cm}
+    {\color{colAccent}\rule{0.55\textwidth}{1.2pt}}\\[0.55cm]
+    {\LARGE\bfseries\color{colTitre}
+      Intégration du framework MITRE ATT\&CK\\[0.15cm]
+      dans un écosystème MCP pour la détection}\\[0.35cm]
+    {\large\itshape\color{colGris}
+      Quand l'intelligence artificielle apprend à citer ses sources}\\[0.5cm]
+    {\color{colAccent}\rule{0.55\textwidth}{1.2pt}}\\[0.7cm]
+    {\normalsize\color{colGris} Kamil Saleh}\\[0.12cm]
+    {\small\color{colGris} Université du Québec à Chicoutimi (UQAC)}\\[0.06cm]
+    {\small\color{colGris} Projet mené avec la collaboration d'Hydro-Québec & de l'UQAC }\\[0.45cm]
+    {\small\color{colGris}\today}
+  \end{center}
+\end{frame}
+
+% ===========================================================================
+%  DIAPOSITIVE 0 — Sommaire
+% ===========================================================================
+
+\begin{frame}
+  \frametitle{Le chemin de cette présentation}
+  \vspace{0.25cm}
+  \begin{enumerate}\setlength\itemsep{0.6em}
+    \item {\color{colAccent} État de l'art} que sait-on déjà, et que
+      manque-t-il ?
+    \item Le Model Context Protocol, expliqué simplement
+    \item Notre serveur MCP : fonctionnalités, outils, démonstration
+    \item Les problèmes rencontrés et corrigés
+    \item Ce qui reste à faire : évaluation et sécurisation
+  \end{enumerate}
+\end{frame}
+ 
+
+% ===========================================================================
+%  DIAPOSITIVE 2 — L'accroche
+% ===========================================================================
+\begin{frame}
+  \begin{center}
+    {\Large\bfseries\color{colTitre}
+      Suffirait-il de remplacer nos analystes\\ en cybersécurité par l'intelligence artificielle ?}
+  \end{center}
+  \vspace{0.45cm}
+  \begin{itemize}\setlength\itemsep{0.45em}
+    \item<2-> Une IA sait \textbf lire et expliquer une attaque mais sait-elle
+      \textbf prendre la bonne décision quand la vérité compte ?
+    \item<3-> Comment la forcer à s'appuyer sur des faits vérifiables,
+      plutôt que sur sa mémoire ?
+    \item<4-> C'est exactement le rôle du Model Context Protocol (MCP) et c'est l'objet de ce projet.
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+%  DIAPOSITIVE 3 — La réalité d'un SOC
+% ===========================================================================
+\begin{frame}
+  \frametitle{La réalité d'un centre d'opérations de sécurité (SOC)}
+  \vspace{0.15cm}
+  \begin{columns}[T]
+    \begin{column}{0.33\textwidth}
+      \grandchiffre{4\,484}{alertes reçues par jour,\\ en moyenne, par équipe SOC\\ {\scriptsize (Vectra, 2023)}}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \grandchiffre{67\,\%}{de ces alertes ne sont\\ jamais traitées\\ {\scriptsize (Vectra, 2023)}}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \grandchiffre{1 sur 2}{analystes songent à quitter\\ le domaine, épuisés\\ {\scriptsize (Splunk, 2025)}}
+    \end{column}
+  \end{columns}
+  \vspace{0.5cm}
+  \begin{block}{ }
+    Le danger d'un SOC moderne n'est pas le manque d'information :
+    c'est \textbf l'excès d'information non triée et l'épuisement des
+    humains qui doivent la trier.
+  \end{block}
+\end{frame}
+
+% ===========================================================================
+%  DIAPOSITIVE 4 — La promesse et le piège
+% ===========================================================================
+\begin{frame}
+  \frametitle{Les LLM : un copilote brillant\ldots{} qui ne dit jamais « je ne sais pas »}
+  \vspace{0.2cm}
+  \begin{itemize}\setlength\itemsep{0.5em}
+    \item Les grands modèles de langage (LLM) savent lire, résumer et
+      expliquer une alerte en langage clair une aide précieuse au triage.
+    \item<2-> Mais quand l'information leur manque, ils produisent la suite la
+      plus \emph{plausible} : c'est l'hallucination .
+    \item<3-> En cybersécurité, une technique d'attaque inventée, c'est une enquête orientée vers la mauvaise cible pendant que la vraie
+      attaque continue.
+  \end{itemize}
+  \vspace{0.35cm}
+  \begin{exampleblock}{ }<4->
+    Le problème n'est pas le LLM lui même mais c'est son ancrage dans les faits.
+  \end{exampleblock}
+\end{frame}
+
+% ===========================================================================
+%  DIAPOSITIVE 5 — Les deux briques : ATT&CK et MCP
+% ===========================================================================
+\begin{frame}
+  \frametitle{Notre réponse : brancher l'IA sur la source officielle}
+  \vspace{0.1cm}
+  \begin{itemize}\setlength\itemsep{0.35em}
+    \item \textbf{MITRE ATT\&CK} : l'encyclopédie mondiale, libre et maintenue,
+      des modes opératoires des attaquants « le dictionnaire du cambrioleur ».
+    \item \textbf{MCP} \emph{(Model Context Protocol)} : le standard ouvert qui
+      branche un modèle d'IA sur une source de données « le port USB-C de l'IA ».
+  \end{itemize}
+  \vspace{0.3cm}
+  \begin{center}
+  \begin{tikzpicture}[font=\footnotesize,
+    boite/.style={rectangle, rounded corners=3pt, draw, thick, align=center,
+      minimum height=1.05cm, inner sep=5pt},
+    fleche/.style={-{Stealth[length=2.6mm]}, thick, colGris}]
+    \node[boite, draw=colGris, fill=colGris!8] (logs)
+      {Alertes\\ et journaux};
+    \node[boite, draw=colTitre, fill=colTitre!8, right=1.05cm of logs]
+      (agent) {\textbf{Agent (LLM)}\\ raisonne};
+    \node[boite, draw=colOutil, fill=colOutil!8, right=1.55cm of agent]
+      (serveur) {\textbf{Serveur MCP ATT\&CK}\\ \emph{notre développement}};
+    \node[boite, draw=colAccent, fill=colAccent!8, right=1.05cm of serveur]
+      (analyste) {Analyste :\\ réponse sourcée};
+    \draw[fleche] (logs) -- (agent);
+    \draw[fleche, {Stealth[length=2.6mm]}-{Stealth[length=2.6mm]}, colOutil]
+      (agent) -- node[above, font=\scriptsize\bfseries, colOutil]{MCP}
+      node[below, font=\scriptsize\itshape, colGris]{appels tracés} (serveur);
+    \draw[fleche] (serveur -| serveur.east) (analyste);
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.25cm}
+  \begin{block}{ }<2->
+    L'agent ne récite plus de mémoire : chaque technique qu'il avance est
+    allée chercher, par un appel vérifiable, dans le référentiel officiel.
+  \end{block}
+\end{frame}
+
+% ===========================================================================
+%  DIAPOSITIVE 6 — Le contexte Hydro-Québec et la question de recherche
+% ===========================================================================
+\begin{frame}
+  \frametitle{Pourquoi Hydro-Québec, pourquoi maintenant}
+  \vspace{0.15cm}
+  \begin{itemize}\setlength\itemsep{0.5em}
+    \item Les plateformes commerciales de détection sont des boîtes
+      noires : la logique appartient au fournisseur, l'audit est impossible.
+    \item Pour une infrastructure critique, la loi canadienne sur la protection des cybersystèmes essentiels (loi C-26) exige une maîtrise technique auditable.
+    \item Un serveur MCP développé à l'interne est un actif souverain:
+      l'organisation le possède, le lit, le modifie et le journalise.
+  \end{itemize}
+  \vspace{0.35cm}
+\end{frame}
+
+
+% ===========================================================================
+%  DIAPOSITIVE 8 — État de l'art (1/3) : les trois générations du mapping
+% ===========================================================================
+\begin{frame}
+  \frametitle{État de l'art (1/3) - Trois générations pour automatiser le \emph{mapping}}
+  \vspace{0.1cm}
+  \begin{center}
+  \begin{tikzpicture}[
+    etape/.style={rectangle, rounded corners=3pt, draw, thick, align=center,
+      text width=3.55cm, minimum height=2.15cm, font=\footnotesize, inner sep=4pt},
+    fleche/.style={-{Stealth[length=3mm]}, thick, colGris}]
+    \node[etape, draw=colTitre, fill=colTitre!8] (g1)
+      {\textbf{Classification supervisée}\\ {\scriptsize (ex. TRAM : SciBERT affiné)}\\[3pt]
+       {\color{colAccent}\scriptsize $\approx$ 50 techniques couvertes :\\ l'annotation experte plafonne}};
+    \node[etape, draw=colOr!80!black, fill=colFond, right=0.95cm of g1] (g2)
+      {\textbf{Ancrage par récupération}\\ {\scriptsize (RAG, ex. TechniqueRAG)}\\[3pt]
+       {\color{colAccent}\scriptsize jusqu'à $\approx 0{,}90$ de $F_1$, mais\\ les techniques implicites échappent}};
+    \node[etape, draw=colOutil, fill=colOutil!8, right=0.95cm of g2] (g3)
+      {\textbf{Accès outillé}\\ {\scriptsize (serveurs MCP ATT\&CK)}\\[3pt]
+       {\color{colOutil}\scriptsize prometteur mais non encore\\ répliqué indépendamment}};
+    \draw[fleche] (g1) -- (g2);
+    \draw[fleche] (g2) -- (g3);
+    \node[below=1.5mm of g1, font=\scriptsize\itshape, colGris] {$\sim$2021--2024};
+    \node[below=1.5mm of g2, font=\scriptsize\itshape, colGris] {2024--2025};
+    \node[below=1.5mm of g3, font=\scriptsize\itshape, colGris] {2025--\ldots};
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.2cm}
+  \begin{block}{ }<2->
+    Le \emph{mapping} n'est pas de la reconnaissance de mots-clés : c'est un
+    raisonnement, qui exige un appui sur une base fiable.
+    Chaque génération rapproche le modèle de la source.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 9 — État de l'art (2/3) : que valent les LLM ?
+% ===========================================================================
+\begin{frame}
+  \frametitle{État de l'art (2/3) - Que valent les LLM face aux attaques ?}
+  \vspace{0.2cm}
+  \begin{itemize}\setlength\itemsep{0.55em}
+    \item Détecter : oui. Ancrés sur des journaux, ils dépassent les
+      classifieurs classiques ($F_1 \approx 0{,}93$ contre $\approx 0{,}56$ pour
+      XGBoost) et savent expliquer leurs verdicts.
+    \item<2-> Se tromper : oui aussi. L'hallucination demeure le risque
+      central l'ancrage la \emph{réduit}, il ne l'\emph{élimine} pas.
+    \item<3-> Sur le terrain (10 mois d'observation en SOC réel) : les
+      analystes utilisent le LLM pour \emph{comprendre}, pas pour \emph{décider}.
+  \end{itemize}
+  \vspace{0.3cm}
+  \begin{exampleblock}{Réponse à notre question d'ouverture}<4->
+    La littérature converge : le LLM est une \textbf{augmentation de
+    l'analyste}, pas son remplacement.
+  \end{exampleblock}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 10 — État de l'art (3/3) : la sécurité du MCP
+% ===========================================================================
+\begin{frame}
+  \frametitle{État de l'art (3/3) - Le revers : la sécurité du MCP lui-même}
+  \vspace{0.05cm}
+  \begin{itemize}\setlength\itemsep{0.4em}
+    \item Un LLM isolé qui se trompe produit du texte ; branché à des
+      outils, il peut produire une action.
+    \item<2-> Empoisonnement d'outils : 36,5\,\% de réussite moyenne
+      sur des serveurs MCP réels et les modèles \emph{les plus capables}
+      sont les plus vulnérables (MCPTox, AAAI 2026).
+    \item<3-> Vulnérabilités avérées (\texttt{CVE-2025-6514}, gravité 9,6/10) ;
+      des garde-fous de la spécification restent optionnels
+      (\emph{should} $\neq$ \emph{must}).
+    \item<4-> Constat de la NSA (2026) : la prolifération du MCP a
+      devancé son modèle de sécurité.
+  \end{itemize}
+  \vspace{0.1cm}
+  \begin{block}{ }<5->
+    Un outil d'aide à la détection qui deviendrait lui-même un vecteur
+    d'attaque serait une régression d'où le volet sécurisation de
+    ce projet.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 11 — Synthèse de la revue
+% ===========================================================================
+\begin{frame}
+  \frametitle{Synthèse de la revue}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Ce que la littérature établit}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.35em}
+          \item L'ancrage dans une base fiable compte plus que la
+            taille du modèle.
+          \item Le LLM augmente l'analyste ; il ne le remplace pas.
+          \item Les risques du MCP sont réels et documentés.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{block}{Ce qu'elle laisse ouvert}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.35em}
+          \item Modèles évalués souvent déjà dépassés au moment de la
+            publication.
+          \item Corpus : du texte CTI en anglais rien sur les
+            journaux industriels (OT/ICS).
+          \item Benchmarks publics exposés à la contamination ;
+            fiabilité résiduelle non caractérisée pour la décision
+            critique.
+          \item Latence temps réel et sécurité MCP en milieu
+            régulé : non évaluées.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.12cm}
+  \begin{center}
+    \onslide<2->{\color{colAccent}\bfseries C'est dans ces angles morts que
+    notre projet s'installe  et tout commence par comprendre le MCP.}
+  \end{center}
+\end{frame}
+
+
+
+
+% ===========================================================================
+%  DIAPOSITIVE 12 — Le MCP en une idée
+% ===========================================================================
+\begin{frame}
+  \frametitle{Le MCP en une idée : d'un problème de câbles à une prise universelle}
+  \vspace{0.05cm}
+  \begin{center}
+  \begin{tikzpicture}[
+    app/.style={rectangle, rounded corners=2pt, draw=colTitre, thick,
+      fill=colTitre!8, minimum width=1.45cm, minimum height=0.52cm, font=\scriptsize},
+    src/.style={rectangle, rounded corners=2pt, draw=colOutil, thick,
+      fill=colOutil!8, minimum width=1.45cm, minimum height=0.52cm, font=\scriptsize},
+    hub/.style={rectangle, rounded corners=3pt, draw=colAccent, very thick,
+      fill=colAccent!10, minimum width=1.15cm, minimum height=2.0cm,
+      font=\scriptsize\bfseries},
+    lien/.style={colGris, thin}]
+    % --- Sans standard ---
+    \node[app] (a1) at (0,1.2)  {App 1};
+    \node[app] (a2) at (0,0.6)  {App 2};
+    \node[app] (a3) at (0,0)    {App 3};
+    \node[src] (s1) at (3.3,1.2){Source 1};
+    \node[src] (s2) at (3.3,0.6){Source 2};
+    \node[src] (s3) at (3.3,0)  {Source 3};
+    \foreach \i in {1,2,3} \foreach \j in {1,2,3} \draw[lien] (a\i) -- (s\j);
+    \node[font=\scriptsize\itshape, colGris, align=center] at (1.65,-0.72)
+      {Sans standard : un connecteur\\ sur mesure par couple ($M \times N$)};
+    % --- Avec MCP ---
+    \begin{scope}[xshift=6.6cm]
+    \node[app] (b1) at (0,1.2)  {App 1};
+    \node[app] (b2) at (0,0.6)  {App 2};
+    \node[app] (b3) at (0,0)    {App 3};
+    \node[hub] (m)  at (1.8,0.6) {MCP};
+    \node[src] (t1) at (3.6,1.2){Source 1};
+    \node[src] (t2) at (3.6,0.6){Source 2};
+    \node[src] (t3) at (3.6,0)  {Source 3};
+    \foreach \i in {1,2,3} \draw[lien] (b\i) -- (m);
+    \foreach \j in {1,2,3} \draw[lien] (m) -- (t\j);
+    \node[font=\scriptsize\itshape, colGris, align=center] at (1.8,-0.72)
+      {Avec le MCP : une implémentation\\ par côté ($M + N$)};
+    \end{scope}
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.1cm}
+  \begin{itemize}\setlength\itemsep{0.3em}
+    \item<2-> Standard ouvert : publié par Anthropic (novembre 2024),
+      adopté depuis par les grands fournisseurs concurrents.
+    \item<3-> Gouvernance neutre : projet confié fin 2025 à une
+      fondation sous l'égide de la Linux Foundation personne n'en est
+      captif.
+  \end{itemize}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 13 — Les trois rôles
+% ===========================================================================
+\begin{frame}
+  \frametitle{Trois rôles et un point de contrôle unique}
+  \vspace{0.1cm}
+  \begin{center}
+  \begin{tikzpicture}[
+    comp/.style={rectangle, rounded corners=3pt, draw, thick, align=center,
+      font=\footnotesize, inner sep=5pt},
+    fleche/.style={{Stealth[length=2.6mm]}-{Stealth[length=2.6mm]}, thick, colGris}]
+    \node[comp, draw=colTitre, fill=colTitre!6, minimum width=4.3cm,
+      minimum height=2.15cm, label={[font=\footnotesize\bfseries,
+      color=colTitre]above:{HÔTE : l'application d'IA}}] (hote) at (0,0) {};
+    \node[comp, draw=colTitre, fill=white, minimum width=3.3cm] (llm)
+      at (0,0.42) {Modèle (LLM)};
+    \node[comp, draw=colTitre, fill=white, minimum width=3.3cm] (client)
+      at (0,-0.42) {Client MCP};
+    \node[comp, draw=colOutil, fill=colOutil!6, minimum width=4.4cm,
+      minimum height=2.15cm, right=2.7cm of hote,
+      label={[font=\footnotesize\bfseries, color=colOutil]above:{SERVEUR MCP}}]
+      (serveur) {};
+    \node[comp, draw=colOutil, fill=white, align=center, minimum width=3.5cm]
+      (ref) at (serveur.center) {Référentiel\\ MITRE ATT\&CK};
+    \draw[fleche] (client.east) -- node[above, font=\scriptsize, colGris]
+      {JSON-RPC 2.0} node[below, font=\scriptsize\itshape, colGris,
+      align=center, yshift=-1pt] {connexion dédiée}
+      (serveur.west |- client.east);
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.15cm}
+  \begin{block}{ }<2->
+    Le serveur ne parle jamais directement au modèle : tout transite
+    par le client, donc par l'hôte un guichet unique où chaque appel peut
+    être validé, filtré, soumis à confirmation humaine.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 14 — Les trois primitives
+% ===========================================================================
+\begin{frame}
+  \frametitle{Trois primitives et surtout : qui décide de quoi}
+  \vspace{0.2cm}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block title}
+        \centering\textbf{Outils} \emph{(tools)}
+      \end{beamercolorbox}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block body}
+        \small Fonctions que le serveur exécute à la demande
+        (ex. \texttt{rechercher\_technique}).\\[4pt]
+        \textbf{Qui décide : le modèle.}
+      \end{beamercolorbox}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block title}
+        \centering\textbf{Ressources}
+      \end{beamercolorbox}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block body}
+        \small Contenus fournis en lecture au contexte
+        (ex. une fiche de technique).\\[4pt]
+        \textbf{Qui décide : l'application.}
+      \end{beamercolorbox}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block title}
+        \centering\textbf{Prompts}
+      \end{beamercolorbox}
+      \begin{beamercolorbox}[rounded=true, sep=6pt]{block body}
+        \small Modèles d'interaction préconfigurés
+        (ex. « analyse cette alerte »).\\[4pt]
+        \textbf{Qui décide : l'utilisateur.}
+      \end{beamercolorbox}
+    \end{column}
+  \end{columns}
+  \vspace{0.4cm}
+  \begin{exampleblock}{ }<2->
+    Cette répartition n'est pas un détail technique : c'est un modèle de
+    contrôle  elle délimite ce que le modèle peut, et ne peut pas, provoquer.
+  \end{exampleblock}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 15 — Le cycle de vie d'un échange
+% ===========================================================================
+\begin{frame}
+  \frametitle{Un échange MCP : trois phases, aucune improvisation}
+  \vspace{0.1cm}
+  \begin{center}
+  \begin{tikzpicture}[
+    phase/.style={rectangle, rounded corners=3pt, draw, thick, align=center,
+      text width=3.55cm, minimum height=2.05cm, font=\footnotesize, inner sep=4pt},
+    fleche/.style={-{Stealth[length=3mm]}, thick, colGris}]
+    \node[phase, draw=colTitre, fill=colTitre!8] (p1)
+      {\textbf{1 $\cdot$ Initialisation}\\[3pt]
+       \scriptsize On s'accorde : version du\\ protocole + capacités de chacun.\\
+       {\color{colAccent}Rien de non négocié ne\\ pourra être invoqué.}};
+    \node[phase, draw=colOutil, fill=colOutil!8, right=0.95cm of p1] (p2)
+      {\textbf{2 $\cdot$ Opération}\\[3pt]
+       \scriptsize \texttt{tools/list} : le catalogue.\\
+       \texttt{tools/call} : l'invocation.\\
+       {\color{colOutil}Chaque résultat = un\\ message tracé.}};
+    \node[phase, draw=colAccent, fill=colAccent!8, right=0.95cm of p2] (p3)
+      {\textbf{3 $\cdot$ Arrêt}\\[3pt]
+       \scriptsize Fermeture du canal\\ de transport.\\
+       \scriptsize\itshape (pas de message dédié)};
+    \draw[fleche] (p1) -- (p2);
+    \draw[fleche] (p2) -- (p3);
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.25cm}
+  \begin{block}{L'idée essentielle}<2->
+    Le modèle ne fabrique pas les données qu'il présente : il les
+    obtient par des messages identifiés et journalisables. C'est la
+    propriété qui motive tout notre projet.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 16 — Les deux transports
+% ===========================================================================
+\begin{frame}
+  \frametitle{Deux façons de se parler : \texttt{stdio} et Streamable HTTP}
+  \vspace{0.1cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{\texttt{stdio} la même pièce}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item Le serveur est un sous-processus local du client.
+          \item Aucune exposition réseau ; cycle de vie adossé au
+            processus parent.
+          \item Cas d'usage : poste d'analyste, développement.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{block}{Streamable HTTP l'appel réseau}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item Le serveur est un service réseau : un point d'entrée,
+            plusieurs clients.
+          \item Exposition réelle : certaines protections exigées,
+            d'autres seulement \emph{recommandées}.
+          \item Cas d'usage : intégration à l'infrastructure d'un SOC.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.25cm}
+  \begin{itemize}
+    \item<2-> Même format de message dans les deux cas : changer de
+      transport ne change ni les outils, ni leur logique mais change la
+      surface d'attaque (chapitre sécurisation).
+    \item<3-> Protocole en évolution rapide : révision stable
+      2025-11-25 ; une révision 2026-07-28 en cours de finalisation.
+  \end{itemize}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 17 — Périmètre : ce que le MCP apporte, ce qu'il ne fait pas
+% ===========================================================================
+\begin{frame}
+  \frametitle{Soyons précis : ce que le MCP apporte et ce qu'il ne fait pas}
+  \vspace{0.1cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Ce qu'il apporte au projet}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item \textbf{Interopérabilité} : un serveur conforme se branche sur
+            tout hôte conforme.
+          \item \textbf{Ancrage vérifiable} : un identifiant retourné provient
+            nécessairement du référentiel.
+          \item \textbf{Traçabilité} : chaque appel est journalisable 
+            l'auditabilité qu'exige la LPCE (ex-C-26).
+          \item \textbf{Souveraineté} : la logique de détection appartient à
+            l'organisation.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{block}{Ce qu'il ne fait pas}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item Il ne rend pas le modèle plus intelligent : il
+            normalise l'\emph{échange de contexte}, pas le raisonnement.
+          \item Il ne garantit pas la qualité du mapping
+            c'est la conception de notre serveur.
+          \item Il ne garantit pas la sécurité applicative c'est
+            notre volet sécurisation.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.2cm}
+  \begin{center}
+    \onslide<2->{\color{colAccent}\bfseries Le MCP fournit le canal pas la
+    méthode. Voyons maintenant le serveur que nous avons construit dessus.}
+  \end{center}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 18 — Notre serveur : la carte d'identité
+% ===========================================================================
+\begin{frame}
+  \frametitle{Notre serveur MCP : la carte d'identité}
+  \vspace{0.05cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Ce qu'il est}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item \textbf{Un fichier Python unique}, bibliothèque standard
+            seulement auditable ligne par ligne, zéro dépendance tierce.
+          \item Transport stdio local (mode développement) 
+            l'exposition réseau attend le volet sécurisation.
+          \item \textbf{Lecture seule} : aucun outil d'écriture le modèle
+            ne peut pas polluer la source de vérité.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{block}{Ce qu'il sert}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item Base hybride Enterprise + ICS (ATT\&CK 19.1) :
+            27 tactiques, 794 techniques, 176 groupes, 827 logiciels,
+            96 mitigations.
+          \item 14 outils en 4 familles : cycle de mapping,
+            consultation, référentiel interne, exploitation.
+          \item Chaque réponse datée (\texttt{db\_version}) + journal
+            d'audit JSONL.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.25cm}
+  \begin{center}
+    \onslide<2->{\color{colTitre}\bfseries Chaque ligne de cette carte
+    d'identité traduit une exigence de la problématique en décision technique
+    vérifiable.}
+  \end{center}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 19 — Architecture interne
+% ===========================================================================
+\begin{frame}
+  \frametitle{L'architecture : le trajet d'une requête}
+  \vspace{0.05cm}
+  \begin{center}
+  \begin{tikzpicture}[font=\scriptsize,
+    blk/.style={rectangle, rounded corners=2.5pt, draw, thick, align=center,
+      minimum height=0.85cm, text width=1.85cm, inner sep=3pt},
+    io/.style={rectangle, rounded corners=2.5pt, draw=colGris!70, fill=colGris!8,
+      align=center, minimum height=0.7cm, text width=1.3cm, inner sep=3pt},
+    dbb/.style={rectangle, rounded corners=2.5pt, draw=colOr!80!black,
+      fill=colFond, align=center, text width=2.1cm, inner sep=3pt,
+      minimum height=0.8cm},
+    fl/.style={-{Stealth[length=2.4mm]}, thick, colGris}]
+    \node[io] (in) {\texttt{stdin}\\ JSON-RPC};
+    \node[blk, draw=colTitre, fill=colTitre!8, right=0.5cm of in] (rout)
+      {\textbf{Routage}\\ décodage};
+    \node[blk, draw=colTitre, fill=colTitre!8, right=0.5cm of rout] (val)
+      {\textbf{Validation}\\ types, longueurs};
+    \node[blk, draw=colOutil, fill=colOutil!8, right=0.5cm of val] (mot)
+      {\textbf{Moteur}\\ recherche, scoring};
+    \node[blk, draw=colAccent, fill=colAccent!8, right=0.5cm of mot] (ser)
+      {\textbf{Sérialisation}\\ + \texttt{db\_version}};
+    \node[io, right=0.5cm of ser] (out) {\texttt{stdout}\\ JSON-RPC};
+    \draw[fl] (in)--(rout); \draw[fl] (rout)--(val); \draw[fl] (val)--(mot);
+    \draw[fl] (mot)--(ser); \draw[fl] (ser)--(out);
+    \node[dbb, below=0.55cm of mot] (base)
+      {Base ATT\&CK E+ICS\\ + index lexicaux};
+    \node[dbb, left=0.45cm of base, text width=1.8cm] (thq)
+      {Référentiel\\ interne (THQ)};
+    \node[dbb, below=0.55cm of ser, text width=1.8cm, draw=colGris!70] (aud)
+      {Journal d'audit\\ JSONL};
+    \draw[{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, colGris!70] (mot)--(base);
+    \draw[{Stealth[length=2.4mm]}-{Stealth[length=2.4mm]}, colGris!70]
+      (mot.south west)--(thq.north);
+    \draw[fl, colGris!70] (ser)--(aud);
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.15cm}
+  \begin{block}{L'idée essentielle}<2->
+    La validation précède toujours le traitement, chaque réponse est
+    datée, chaque appel laisse une trace et le moteur est
+    \textbf{indépendant du transport} : passer en réseau n'ajoutera qu'une
+    couche en amont, sans toucher au moteur ni aux réponses.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 20 — La méthode : proposer puis vérifier
+% ===========================================================================
+\begin{frame}
+  \frametitle{La méthode encodée : proposer, puis vérifier}
+  \vspace{0.15cm}
+  \begin{itemize}\setlength\itemsep{0.45em}
+    \item Proposer \texttt{search\_techniques} retourne des
+      \emph{candidats} : score normalisé $[0..1]$ ($\geq 0{,}6$ fort ;
+      $< 0{,}3$ faible) et preuves les mots réellement trouvés.
+    \item<2-> Vérifier \texttt{get\_technique} confirme chaque
+      candidat retenu : définition complète, tactiques, détections,
+      sous-techniques.
+    \item<3-> Règles d'honnêteté  la technique parente d'abord ;
+      et « pas de mapping » est une \emph{conclusion valide} : le serveur
+      l'écrit lui-même.
+  \end{itemize}
+  \vspace{0.3cm}
+  \begin{block}{L'idée essentielle}<4->
+    Cette discipline n'est pas demandée poliment au modèle : elle est
+    \textbf{écrite dans la description des outils} elle voyage avec le
+    serveur, versionnée avec le code, identique pour tous les modèles.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 21 — Le référentiel interne THQ
+% ===========================================================================
+\begin{frame}
+  \frametitle{Le référentiel interne THQ : étendre ATT\&CK sans le trahir}
+  \vspace{0.15cm}
+  \begin{itemize}\setlength\itemsep{0.45em}
+    \item Des fiches \texttt{THQ}$xxxx$ pour les comportements propres à
+      l'organisation toujours rattachées à une technique MITRE.
+    \item<2-> MITRE d'abord, l'interne ensuite : recherche anti-doublon
+      soumise aux mêmes règles de score et de preuves.
+    \item<3-> Lecture seule par conception : le modèle \emph{propose}
+      un brouillon ; un humain relit, valide et committe le fichier.
+  \end{itemize}
+  \vspace{0.3cm}
+  \begin{exampleblock}{La boucle de renseignement locale}<4->
+    Incident interne $\rightarrow$ fiche brouillon proposée $\rightarrow$
+    validation humaine $\rightarrow$ le prochain analyste la retrouve,
+    accrochée à la technique MITRE qu'elle précise
+    (\texttt{internal\_extensions}).
+  \end{exampleblock}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 22 — La trajectoire de versionnement
+% ===========================================================================
+\begin{frame}
+  \frametitle{Six versions, chacune née d'un défaut constaté à l'usage}
+  \vspace{0.2cm}
+  \begin{center}
+  \begin{tikzpicture}[font=\scriptsize]
+    \draw[colGris!50, line width=1pt] (0,0) -- (12.6,0);
+    \foreach \x/\v in {0.5/v1.0, 2.9/v1.1, 5.3/v2.0, 7.7/v2.1, 10.1/v3.0, 12.1/v3.1}{
+      \filldraw[colTitre] (\x,0) circle (2.2pt);
+      \node[colTitre, font=\scriptsize\bfseries, above=2pt] at (\x,0) {\v};}
+    \node[text width=2.1cm, align=center, below=4pt, colGris] at (0.5,0)
+      {Enterprise seul\\ \itshape point de départ};
+    \node[text width=2.1cm, align=center, below=4pt, colGris] at (2.9,0)
+      {\textbf{convergence IT/OT}\\ journal d'audit};
+    \node[text width=2.2cm, align=center, below=4pt, colGris] at (5.3,0)
+      {\textbf{refonte du moteur}\\ score, détection};
+    \node[text width=2.0cm, align=center, below=4pt, colGris] at (7.7,0)
+      {\textbf{référentiel interne}\\ 14 outils};
+    \node[text width=2.0cm, align=center, below=4pt, colGris] at (10.1,0)
+      {\textbf{jalon production}\\ sans état};
+    \node[text width=2.0cm, align=center, below=4pt, colGris] at (12.1,0)
+      {\textbf{jalon auditabilité}};
+  \end{tikzpicture}
+  \end{center}
+  \vspace{0.45cm}
+  \begin{alertblock}{Le fil rouge de tout ce qui suit}<2->
+    Les défauts les plus graves n'ont jamais produit d'erreur : ils se
+    présentaient comme des réponses normales. La \emph{défaillance silencieuse}
+    est le mode d'échec caractéristique d'un composant d'ancrage.
+  \end{alertblock}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 23 — Défaut 1 : la couverture IT/OT
+% ===========================================================================
+\begin{frame}
+  \frametitle{Défaut 1 : Un serveur qui ignorait la moitié du monde}
+  \vspace{0.1cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{alertblock}{Avant (v1.0)}
+        \footnotesize Matrice Enterprise seule. Sur des journaux industriels
+        (Modbus, automates) : aucun candidat pertinent ou pire,
+        des techniques bureautiques superficiellement voisines.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Après (v1.1)}<2->
+        \footnotesize Fusion \textbf{Enterprise + ICS} : chaque objet étiqueté
+        par sa matrice, rattachements cloisonnés « Persistence »
+        existe deux fois (\texttt{TA0003} $\neq$ \texttt{TA0110}), jamais
+        confondues.
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.35cm}
+  \begin{block}{L'idée essentielle}<3->
+    Le défaut n'était pas algorithmique, il était \textbf{ontologique} : la
+    base interrogée ne couvrait pas le monde observé exactement l'angle
+    mort OT identifié dans l'état de l'art.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 24 — Défaut 2 : recherche et score
+% ===========================================================================
+\begin{frame}
+  \frametitle{Défaut 2 : Une recherche qui trouvait trop, un score qui ne disait rien}
+  \vspace{0.1cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{alertblock}{Avant (v1.1)}
+        \footnotesize \texttt{"port"} $\rightarrow$ \textbf{264 candidats},
+        dont \emph{Security Sup\textbf{port} Provider} et
+        \emph{\textbf{Port}able Executable Injection}.\\[3pt]
+        Score : un entier sans échelle « 8 »\ldots{} sur quoi ?
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Après (v2.0)}<2->
+        \footnotesize Mots \textbf{entiers} + racinisation :
+        \texttt{"port"} $\rightarrow$ \textbf{37 candidats, zéro faux
+        positif}.\\[3pt]
+        Score normalisé $[0..1]$, seuils documentés (0,6 / 0,3), et
+        \textbf{preuves} : les mots effectivement trouvés.
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.35cm}
+  \begin{block}{L'idée essentielle}<3->
+    Un candidat n'est utile que s'il est \textbf{interprétable} : un score qui
+    a une échelle, et la preuve de ce qui a réellement correspondu.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 25 — Défaut 3 : le référentiel est vivant
+% ===========================================================================
+\begin{frame}
+  \frametitle{Défaut 3 : Le référentiel est vivant : deux pièges silencieux}
+  \vspace{0.1cm}
+  \begin{itemize}\setlength\itemsep{0.5em}
+    \item \textbf{MITRE a restructuré son modèle de détection} (v18) : nos
+      champs se sont vidés sur \emph{toutes} les techniques sans une seule
+      erreur. \onslide<2->{Corrigé : lecture du nouveau modèle
+      (stratégies $\rightarrow$ analytics $\rightarrow$ sources de logs)
+      \textbf{0 $\rightarrow$ 387 sources de données}, 794/794 techniques
+      dotées de détections.}
+    \item<3-> \textbf{MITRE révoque des techniques} (158 redirections en 19.1) :
+      \texttt{T1086} répondait « non trouvée » à un rapport CTI de 2019.
+      \onslide<4->{Corrigé : redirection explicite
+      \texttt{T1086} $\rightarrow$ « révoquée, consulter \texttt{T1059.001} ».}
+  \end{itemize}
+  \vspace{0.25cm}
+  \begin{block}{L'idée essentielle}<5->
+    S'ancrer sur un référentiel vivant impose de suivre sa vie :
+    versions datées dans chaque réponse, redirections plutôt que silences.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 26 — Défaut 4 : le journal qui ne prouvait pas
+% ===========================================================================
+\begin{frame}
+  \frametitle{Défaut 4 : Un journal qui ne prouvait pas ce qu'il devait prouver}
+  \vspace{0.1cm}
+  \begin{itemize}\setlength\itemsep{0.45em}
+    \item Une session de \textbf{6 messages} de protocole ne laissait
+      qu'\textbf{une} ligne d'audit ; les erreurs, elles, n'en laissaient
+      aucune.
+    \item<2-> Corrigé (v3.1) : \textbf{chaque phase journalisée} (1
+      $\rightarrow$ 6 événements) y compris l'appel d'un outil
+      \emph{inexistant} : l'\textbf{hallucination d'outil devient mesurable}
+      depuis le seul journal.
+    \item<3-> Enregistrements \textbf{enrichis} : identifiant de requête,
+      latence, version du référentiel, résumé des arguments et du résultat
+      et les pertes de traces \textbf{se comptent elles-mêmes}.
+  \end{itemize}
+  \vspace{0.25cm}
+  \begin{block}{L'idée essentielle}<4->
+    Un journal destiné à servir de preuve doit pouvoir déclarer ses
+    propres lacunes : sinon l'absence d'un événement devient indiscernable
+    de sa non-occurrence.
+  \end{block}
+\end{frame}
+ 
+% ===========================================================================
+%  DIAPOSITIVE 27 — Bilan du serveur et transition
+% ===========================================================================
+\begin{frame}
+  \frametitle{Bilan : ce que le serveur garantit désormais}
+  \vspace{0.1cm}
+  \begin{columns}[T]
+    \begin{column}{0.485\textwidth}
+      \begin{exampleblock}{Garanties acquises}
+        \footnotesize
+        \begin{itemize}\setlength\itemsep{0.3em}
+          \item Couverture \textbf{IT/OT} cloisonnée par matrice.
+          \item Candidats \textbf{interprétables} : score étalonné + preuves.
+          \item Référentiel vivant \textbf{suivi} : versions datées,
+            redirections.
+          \item Traçabilité \textbf{de bout en bout}, pertes comptées.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.485\textwidth}
+      \begin{block}{La leçon de méthode}
+        \footnotesize La défaillance silencieuse étant le mode d'échec
+        caractéristique d'un composant d'ancrage, chaque correction est
+        démontrée par un protocole rejouable, la même requête aux deux
+        versions, les deux sorties comparées jamais seulement affirmée.
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.35cm}
+  \begin{center}
+    \onslide<2->{\color{colAccent}\bfseries Le serveur existe et il est
+    honnête. Reste à le \emph{prouver} l'évaluation et à le
+    \emph{durcir}  la sécurisation.}
+  \end{center}
+\end{frame}
+ 
+
+
+% ===========================================================================
+%  SUITE DU PLAN (à construire lors des prochaines séances) :
+%    - Présentation du sommaire
+%    - État de l'art
+%    - Introduction au MCP
+%    - Notre serveur MCP (fonctionnalités, outils, fonctionnement, démonstration)
+%    - Les problèmes corrigés (explications techniques + démonstrations)
+%    - Ce qui reste à faire (évaluation + sécurisation)
+%    - L'évaluation (méthodologie)
+%    - La sécurisation du MCP (transports, journalisation, authentification,
+%      protection contre les attaques)
+% ===========================================================================
+
+\end{document}

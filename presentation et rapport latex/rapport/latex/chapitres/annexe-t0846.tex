@@ -1,0 +1,172 @@
+%% ===================================================================
+%% ANNEXE A --- Génération d'attaque : l'exemple T0846
+%% Exécution, capture Zeek et construction du jeu de données.
+%% ===================================================================
+\chapter{Génération d'attaque : l'exemple T0846}
+\label{ann:t0846}
+
+Cette annexe montre, sur l'exemple de \textbf{T0846 — Remote System Discovery}
+(MITRE ATT\&CK for ICS, tactique \emph{Discovery}), comment une attaque réelle est
+\emph{exécutée}, \emph{capturée} par Zeek, puis transformée en un \emph{échantillon
+étiqueté}. Le procédé est identique pour toutes les techniques.
+
+% --------------------------- Schéma d'ensemble ---------------------------
+\paragraph{Chaîne de bout en bout.} Le harnais \lstinline|atk| \textbf{réside dans
+kali} : pour chaque attaque, il \textbf{enregistre} deux horodatages UTC ($t_0$
+avant, $t_1$ après) et l'étiquette (ID + fenêtre) dans la \textbf{vérité-terrain}.
+Pendant ce temps, Zeek journalise le trafic \emph{sans connaître} la technique. Le
+script recolle le tout : il découpe la télémétrie sur $[t_0,t_1]$ en un échantillon
+\lstinline|S###.jsonl| (\textbf{sans étiquette}) et place la réponse dans
+\lstinline|verite_terrain.jsonl|. Cette séparation télémétrie\,/\,étiquette rend
+l'évaluation honnête.
+
+\begin{figure}[h]\centering
+\begin{tikzpicture}[node distance=5mm and 11mm]
+\node[atk]  (kali) {Attaquant — kali \texttt{.90.6}\\ \scriptsize contient le \textbf{harnais \lstinline|atk|}};
+\node[tar,right=of kali] (cibles) {Cibles Modbus\\ \scriptsize simulation \texttt{.95.10–.15:502}};
+\node[zeek,below=of cibles] (zeek) {Sonde \textbf{Zeek}\\ \scriptsize \texttt{conn.log}, \texttt{modbus.log}};
+\node[gt,below=of kali] (trace) {\texttt{trace\_attaques\_zeek.jsonl}\\ \scriptsize fenêtre $t_0,t_1$ + ID};
+\node[script,right=24mm of cibles] (script) {\lstinline|preparer_dataset.py|\\ \scriptsize valide l'ID MITRE,\\[-1pt] découpe par fenêtre};
+\node[sortie,above=7mm of script] (samples) {\texttt{S000.jsonl}\\ \scriptsize \textbf{sans} étiquette};
+\node[gt,below=7mm of script] (verite) {\texttt{verite\_terrain}\\ \scriptsize la réponse};
+\draw[afleche,cAtk] (kali) -- node[aetiq,above]{balayage} (cibles);
+\draw[afleche,cZeek] (cibles) -- node[aetiq,right]{capture} (zeek);
+\draw[aflechep,cGT] (kali) -- node[aetiq,right]{enregistre} (trace);
+\draw[afleche,cZeek] (zeek.east) to[out=0,in=180] (script.west);
+\draw[afleche,cGT]  (trace.east) to[out=0,in=205] (script.west);
+\draw[afleche,cOut] (script) -- (samples);
+\draw[afleche,cGT]  (script) -- (verite);
+\begin{scope}[on background layer]
+\node[draw=cTar!35,dashed,rounded corners,inner sep=7pt,fill=cBg,
+  fit=(kali)(cibles)(zeek)(trace),
+  label={[font=\scriptsize\bfseries,text=cTar]above:Lab TO (génération + capture)}]{};
+\node[draw=cScript!35,dashed,rounded corners,inner sep=7pt,fill=cScript!3,
+  fit=(script)(samples)(verite),
+  label={[font=\scriptsize\bfseries,text=cScript]above:Poste (dataset)}]{};
+\end{scope}
+\end{tikzpicture}
+\caption{Chaîne complète. Le harnais \texttt{atk} réside dans kali et
+\emph{enregistre} la fenêtre dans la trace ; Zeek capture le balayage. Télémétrie
+(bleu) et étiquette (vert) ne se rejoignent que dans le script.}
+\end{figure}
+
+% --------------------------- Script d'attaque + séquence ---------------------------
+\paragraph{Script de l'attaque (depuis \texttt{kali}).} On balaie
+\texttt{192.168.95.0/24} et on teste, pour chaque adresse, si le port TCP
+\textbf{502} (Modbus) est ouvert. Un port ouvert se termine proprement
+(\texttt{conn\_state=SF}, serveur Modbus) ; un port fermé est rejeté
+(\texttt{conn\_state=REJ}). Les six serveurs de la simulation
+(\texttt{.10}–\texttt{.15}) répondent \texttt{SF}, \texttt{.45} répond \texttt{REJ}.
+
+\begin{lstlisting}[style=bash]
+atk T0846 - kali docker exec -i kali python3 -c '
+import socket
+for i in range(1,255):                       # teste .1 a .254
+    s = socket.socket(); s.settimeout(0.2)
+    try: s.connect(("192.168.95.%d"%i,502)); print("MODBUS ouvert: .%d"%i)
+    except: pass
+    finally: s.close()'
+sleep 30                                      # 30 s : isole la fenetre de l'attaque
+\end{lstlisting}
+
+\begin{figure}[h]\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\def\xK{0}\def\xC{5.6}\def\xZ{10.6}
+\node[atk]  (K) at (\xK,0) {kali \texttt{.90.6}};
+\node[tar]  (C) at (\xC,0) {cibles \texttt{.95.x:502}};
+\node[zeek] (Z) at (\xZ,0) {Zeek $\rightarrow$ \texttt{conn.log}};
+\foreach \x/\c in {\xK/cAtk,\xC/cTar,\xZ/cZeek}
+  \draw[\c!45,thick,dashed] (\x,-0.45) -- (\x,-4.75);
+\draw[gt,fill=cGT!8] (\xK-1.0,-0.72) rectangle (\xZ+1.0,-1.05);
+\node[font=\scriptsize\itshape,text=cGT!60!black] at (\xK,-0.885) {$t_0$ noté par \lstinline|atk|};
+\node[font=\scriptsize\bfseries,text=cGT!60!black,anchor=west] at (\xK-1.0,-1.38)
+  {Cas A — \texttt{.11} (serveur présent)};
+\draw[afleche,cAtk] (\xK,-1.85) -- node[aetiq,above]{SYN vers \texttt{.11:502}} (\xC,-1.85);
+\draw[afleche,cTar] (\xC,-2.30) -- node[aetiq,above]{SYN/ACK, ACK} (\xK,-2.30);
+\draw[afleche,cZeek,densely dashed] (\xC,-2.68) -- node[aetiq,above]{journalise} (\xZ,-2.68);
+\node[gt,font=\scriptsize,anchor=west] at (\xZ+0.12,-2.68){\texttt{SF} = OUVERT};
+\node[font=\scriptsize\bfseries,text=cAtk,anchor=west] at (\xK-1.0,-3.10)
+  {Cas B — \texttt{.45} (aucun serveur)};
+\draw[afleche,cAtk] (\xK,-3.57) -- node[aetiq,above]{SYN vers \texttt{.45:502}} (\xC,-3.57);
+\draw[afleche,cTar] (\xC,-4.02) -- node[aetiq,above]{RST (rejet)} (\xK,-4.02);
+\draw[afleche,cZeek,densely dashed] (\xC,-4.40) -- node[aetiq,above]{journalise} (\xZ,-4.40);
+\node[atk,font=\scriptsize,anchor=west] at (\xZ+0.12,-4.40){\texttt{REJ} = FERMÉ};
+\node[font=\scriptsize\itshape,text=cComment] at (\xC,-5.0) {\dots\ répété pour $i=1\dots254$, puis $t_1$ noté \dots};
+\end{tikzpicture}
+\caption{Exécution de T0846 (diagramme de séquence). Chaque tentative laisse une
+ligne dans \texttt{conn.log} ; l'ensemble forme l'empreinte d'un balayage.}
+\end{figure}
+
+% --------------------------- Capture Zeek ---------------------------
+\paragraph{Zeek : capture que l'attaque.} La sonde zeek partage le même espace de
+noms réseau de la simulation EWS 192.168.95.x : elle voit donc aussi la boucle de fond permanent de l'automate PLC$\leftrightarrow$contrôleur, très bruyant. Elle est \textbf{préconfigurée pour
+ne pas capter ce bruit} : comme la source d'attaque est connue d'avance
+(\texttt{kali 192.168.90.6}), on limite la détection de l'interface du segment
+\texttt{.95}, puis applique un filtre BPF qui ne garde que les échanges dont un
+attaquant est une extrémité, et charge les analyseurs Modbus/DNP3 via le script ci-dessous :
+
+\begin{lstlisting}[style=bash]
+# entrypoint.sh de la sonde Zeek (reglage obtenu par essais successifs)
+IFACE=$(ip -o -4 addr show | awk '/192\.168\.95\./ {print $2; exit}')   # interface du segment .95
+FILTRE="host 192.168.90.6 or host 192.168.95.5"     # ne garder que le trafic d'un attaquant
+exec zeek -C -i "$IFACE" -f "$FILTRE" icsnpp-modbus icsnpp-dnp3 LogAscii::use_json=T
+\end{lstlisting}
+
+\noindent Ce filtre est un \textbf{succès} : seuls les signaux d'attaque sont
+enregistrés. La capture reste continue, mais comme seul le trafic de l'attaquant
+subsiste, la télémétrie utile se réduit à la fenêtre $[t_0,t_1]$ de chaque tir, et
+la pause de 30\,s rend les fenêtres disjointes. Pour T0846, l'échange se limite à
+des poignées de main TCP : le balayage se lit dans \texttt{conn.log}.
+
+% --------------------------- Harnais + trace ---------------------------
+\paragraph{Harnais \texttt{atk} (dans kali) et vérité-terrain.} Pour chaque tir, le
+harnais note $t_0$, exécute la commande d'attaque, note $t_1$, puis
+\textbf{enregistre une ligne} dans \texttt{trace\_attaques\_zeek.jsonl} :
+l'\textbf{identifiant}, la source et la fenêtre (le \emph{nom} sera résolu plus tard
+par le script).
+
+\begin{lstlisting}[style=json]
+// trace_attaques_zeek.jsonl (aetiquette : ID + fenetre, jamais melangee a la telemetrie)
+{ "technique":"T0846", "sub_technique":"-", "src":"192.168.90.6",
+  "t0":"2026-08-31T18:32:57.7Z", "t1":"2026-08-31T18:33:27.8Z", "rc":0 }
+\end{lstlisting}
+
+% --------------------------- Construction + sorties ---------------------------
+\paragraph{Construction du dataset.} Le script \lstinline|preparer_dataset.py| est
+\textbf{préconfiguré pour reconnaître la zone et les journaux à analyser} : il
+détecte la zone TO via la trace, puis localise les logs Zeek connus
+(\texttt{modbus.log}, \texttt{conn.log}, \texttt{modbus\_read\_device\_identification.log}) ;
+pour ce balayage réseau, c'est \texttt{conn.log} qu'il analyse. Il télécharge puis
+met en \textbf{cache} le catalogue ATT\&CK for ICS et \textbf{vérifie chaque ID} de
+la trace : s'il est révoqué, il le \textbf{met à jour} par son successeur ; sinon il
+en résout le nom (\emph{Remote System Discovery}) et la tactique (\emph{Discovery},
+\texttt{TA0102}). Il récupère alors \textbf{exactement} les lignes dont l'horodatage
+tombe dans $[t_0,t_1]$, les renumérote (\texttt{S000-0001}\dots), et écrit
+\textbf{deux fichiers distincts} : l'\textbf{échantillon} (les logs Zeek, sans
+étiquette) et la \textbf{réponse} \texttt{verite\_terrain.jsonl}, utilisée à
+l'évaluation.
+
+\noindent\textbf{Contenu complet de l'échantillon} \texttt{S000.jsonl} — les 7
+événements capturés (télémétrie brute, \textbf{sans étiquette}) : six connexions
+acceptées vers les serveurs Modbus \texttt{.10}–\texttt{.15}
+(\texttt{conn\_state=SF}) et une connexion rejetée vers \texttt{.45}
+(\texttt{conn\_state=REJ}).
+
+\begin{lstlisting}[style=jsonfull]
+{"id_journal": "S000-0001", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.787604Z", "contenu": {"ts": 1788201177.787604, "uid": "CU6F1C32Nw2Gfb6gPe", "id.orig_h": "192.168.90.6", "id.orig_p": 43820, "id.resp_h": "192.168.95.10", "id.resp_p": 502, "proto": "tcp", "duration": 0.00045490264892578125, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 2, "resp_ip_bytes": 112, "ip_proto": 6}}
+{"id_journal": "S000-0002", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.787725Z", "contenu": {"ts": 1788201177.787725, "uid": "CqKcsvtwkRGmAP6Rj", "id.orig_h": "192.168.90.6", "id.orig_p": 59570, "id.resp_h": "192.168.95.11", "id.resp_p": 502, "proto": "tcp", "duration": 0.0014679431915283203, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFaf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 3, "resp_ip_bytes": 164, "ip_proto": 6}}
+{"id_journal": "S000-0003", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.788217Z", "contenu": {"ts": 1788201177.788217, "uid": "CHsh9K3bivHb8At539", "id.orig_h": "192.168.90.6", "id.orig_p": 58610, "id.resp_h": "192.168.95.12", "id.resp_p": 502, "proto": "tcp", "duration": 0.0012409687042236328, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFaf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 3, "resp_ip_bytes": 164, "ip_proto": 6}}
+{"id_journal": "S000-0004", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.788312Z", "contenu": {"ts": 1788201177.788312, "uid": "CJPqby2g4XNTldykp", "id.orig_h": "192.168.90.6", "id.orig_p": 43274, "id.resp_h": "192.168.95.13", "id.resp_p": 502, "proto": "tcp", "duration": 0.0016789436340332031, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFaf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 3, "resp_ip_bytes": 164, "ip_proto": 6}}
+{"id_journal": "S000-0005", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.788433Z", "contenu": {"ts": 1788201177.788433, "uid": "CoZPeJ226jvmdQY7D9", "id.orig_h": "192.168.90.6", "id.orig_p": 52516, "id.resp_h": "192.168.95.14", "id.resp_p": 502, "proto": "tcp", "duration": 0.0007989406585693359, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFaf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 3, "resp_ip_bytes": 164, "ip_proto": 6}}
+{"id_journal": "S000-0006", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:32:57.788548Z", "contenu": {"ts": 1788201177.788548, "uid": "Cq0Tw03Oplz2OHLQwc", "id.orig_h": "192.168.90.6", "id.orig_p": 37310, "id.resp_h": "192.168.95.15", "id.resp_p": 502, "proto": "tcp", "duration": 0.0012180805206298828, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "SF", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "ShAFaf", "orig_pkts": 4, "orig_ip_bytes": 216, "resp_pkts": 3, "resp_ip_bytes": 164, "ip_proto": 6}}
+{"id_journal": "S000-0007", "zone": "TO", "matrice": "ics", "source": "zeek", "horodatage": "2026-08-31T18:33:03.614345Z", "contenu": {"ts": 1788201183.614345, "uid": "CyfTL91PCRlC93PXxe", "id.orig_h": "192.168.90.6", "id.orig_p": 38592, "id.resp_h": "192.168.95.45", "id.resp_p": 502, "proto": "tcp", "duration": 1.0013580322265625e-05, "orig_bytes": 0, "resp_bytes": 0, "conn_state": "REJ", "local_orig": true, "local_resp": true, "missed_bytes": 0, "history": "Sr", "orig_pkts": 1, "orig_ip_bytes": 60, "resp_pkts": 1, "resp_ip_bytes": 40, "ip_proto": 6}}
+\end{lstlisting}
+
+\noindent Et la réponse associée, dans \texttt{verite\_terrain.jsonl} (utilisée à l'évaluation) :
+
+\begin{lstlisting}[style=json]
+{ "echantillon":"S000", "fichier":"S000.jsonl", "zone":"TO", "source":"zeek", "matrice":"ics",
+  "tactique_attendue":{"id":"TA0102","nom":"Discovery"},
+  "technique_attendue":{"id":"T0846","nom":"Remote System Discovery"},
+  "sous_technique_attendue":{"id":"aucune","nom":"aucune"} }
+\end{lstlisting}
